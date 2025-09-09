@@ -1,8 +1,10 @@
 import React from "react";
 import { Link, NavLink } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useI18n } from "./LanguageProvider";
-import { Bell, Home, LineChart, Medal, Settings, User, Video } from "lucide-react";
+import { useAuth } from "./AuthProvider";
+import { Bell, Home, LineChart, LogOut, Medal, Settings, User, Video } from "lucide-react";
 
 const NavItem: React.FC<{ to: string; icon: React.ReactNode; label: string }> = ({ to, icon, label }) => (
   <NavLink
@@ -20,6 +22,11 @@ const NavItem: React.FC<{ to: string; icon: React.ReactNode; label: string }> = 
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { lang, setLang, t } = useI18n();
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
 
   return (
     <div className="min-h-screen bg-[radial-gradient(1200px_600px_at_50%_-10%,hsl(var(--brand-700))_0%,transparent_60%),linear-gradient(180deg,hsl(var(--background))_20%,hsl(var(--brand-900)/4%)_100%)]">
@@ -54,9 +61,33 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
               className="hidden md:inline-flex h-9 w-9 items-center justify-center rounded-md border hover:bg-accent">
               <Bell className="h-4 w-4" />
             </Link>
-            <Link to="/profile" className="hidden md:inline-flex">
-              <Button variant="secondary" className="gap-2"><User className="h-4 w-4" />{t("profile")}</Button>
-            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" className="gap-2">
+                  <User className="h-4 w-4" />
+                  {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link to="/profile" className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    {t("profile")}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/settings" className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    {t("settings")}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut} className="flex items-center gap-2 text-red-600">
+                  <LogOut className="h-4 w-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
         <div className="md:hidden border-t">

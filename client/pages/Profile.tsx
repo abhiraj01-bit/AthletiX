@@ -7,11 +7,22 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getProfile, saveProfile } from "@/lib/user";
 import { getAttempts } from "@/lib/storage";
+import { useAuth } from "@/components/common/AuthProvider";
 import { Camera, Download, Edit3, Share2, Trophy, UserCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Profile() {
-  const [profile, setProfile] = useState(getProfile());
+  const { user } = useAuth();
+  const [profile, setProfile] = useState(() => {
+    const localProfile = getProfile();
+    // Merge with Supabase user data
+    return {
+      ...localProfile,
+      name: localProfile.name || user?.user_metadata?.name || '',
+      district: localProfile.district || user?.user_metadata?.district || '',
+      sport: localProfile.sport || user?.user_metadata?.sport || '',
+    };
+  });
   const [editing, setEditing] = useState(!profile.name);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 

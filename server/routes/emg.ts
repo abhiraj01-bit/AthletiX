@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { randomUUID } from 'crypto';
 
 export interface EMGData {
   userId: string;
@@ -15,7 +16,7 @@ export const handleEMGData = async (req: Request, res: Response) => {
     
     // Store EMG data (would use Supabase in production)
     const emgReading = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       user_id: userId,
       emg_value: emgValue,
       muscle_activity: muscleActivity,
@@ -83,7 +84,7 @@ function calculateInjuryRisk(fatigue: number, activity: number): 'Low' | 'Medium
 
 function generateMockEMGHistory(userId: string) {
   return Array.from({ length: 10 }, (_, i) => ({
-    id: crypto.randomUUID(),
+    id: randomUUID(),
     user_id: userId,
     muscle_activity: 30 + Math.random() * 50,
     fatigue_level: Math.random() * 60,

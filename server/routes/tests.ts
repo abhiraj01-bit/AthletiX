@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import multer from 'multer';
 import { randomUUID } from 'crypto';
-import { geminiService } from '../services/geminiService';
-import { db, TestAttempt } from '../lib/database';
+import { geminiService } from '../services/geminiService.js';
+import { db, TestAttempt } from '../lib/database.js';
 
 const upload = multer({
   storage: multer.memoryStorage(),

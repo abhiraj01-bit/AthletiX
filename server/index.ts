@@ -1,9 +1,9 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { handleDemo } from "./routes/demo";
-import { handleEMGData, getEMGHistory } from "./routes/emg";
-import { analyzeTest, getTestHistory, getTestStats, uploadVideo } from "./routes/tests";
+import { handleDemo } from "./routes/demo.js";
+import { handleEMGData, getEMGHistory } from "./routes/emg.js";
+import { analyzeTest, getTestHistory, getTestStats, uploadVideo } from "./routes/tests.js";
 
 export function createServer() {
   const app = express();

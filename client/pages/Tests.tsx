@@ -7,12 +7,18 @@ import { Badge } from "@/components/ui/badge";
 import { saveAttempt } from "@/lib/storage";
 import { Camera, Film, Loader2, Play, RefreshCcw, Upload, Watch } from "lucide-react";
 import { useI18n } from "@/components/common/LanguageProvider";
+import { useEMG } from "@/hooks/useEMG";
+import { TestInstructions } from "@/components/TestInstructions";
 
 const tests = [
   { key: "verticalJump", name: "Vertical Jump", setup: "Place phone at knee height, side view." },
   { key: "sitUps", name: "Sit-ups", setup: "Place phone at chest level, front view." },
+  { key: "pushUps", name: "Push-ups", setup: "Place phone at side angle, capture full body." },
+  { key: "pullUps", name: "Pull-ups", setup: "Mount phone to capture full pull-up motion." },
   { key: "shuttleRun", name: "Shuttle Run", setup: "Keep phone stable, wide view of running lane." },
   { key: "enduranceRun", name: "Endurance Run", setup: "Wear TalentBand for pace. Use outdoor light." },
+  { key: "flexibilityTest", name: "Flexibility Test", setup: "Place phone to capture full range of motion." },
+  { key: "agilityLadder", name: "Agility Ladder", setup: "Position phone to capture ladder footwork pattern." },
   { key: "heightWeight", name: "Height/Weight", setup: "Enter details manually or scan from device." },
 ] as const;
 
@@ -27,8 +33,7 @@ export default function Tests() {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const [pairing, setPairing] = useState<"disconnected" | "connecting" | "connected">("disconnected");
-  const [battery, setBattery] = useState<number | null>(null);
+  const { emgData, device, isConnecting, connectDevice, disconnectDevice, saveEMGReading } = useEMG();
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
@@ -89,8 +94,15 @@ export default function Tests() {
   const analyze = async () => {
     await new Promise((r) => setTimeout(r, 1000));
     const result = mockAI(selected);
-    saveAttempt({ id: crypto.randomUUID(), test: selected, timestamp: Date.now(), data: result });
-    alert(`${translate("results")}: ${JSON.stringify(result)}`);
+    const attemptData = { 
+      id: crypto.randomUUID(), 
+      test: selected, 
+      timestamp: Date.now(), 
+      data: result,
+      emgData: device.connected ? emgData : undefined
+    };
+    saveAttempt(attemptData);
+    alert(`${translate("results")}: ${JSON.stringify({...result, emg: emgData})}`);
   };
 
   const mockAI = (key: TestKey) => {
@@ -99,10 +111,18 @@ export default function Tests() {
         return { jumpHeightCm: 42 + Math.floor(Math.random() * 20), badge: pickBadge() };
       case "sitUps":
         return { reps: 25 + Math.floor(Math.random() * 20), badge: pickBadge() };
+      case "pushUps":
+        return { reps: 15 + Math.floor(Math.random() * 25), formScore: 85 + Math.floor(Math.random() * 15), badge: pickBadge() };
+      case "pullUps":
+        return { reps: 5 + Math.floor(Math.random() * 15), gripStrength: 70 + Math.floor(Math.random() * 30), badge: pickBadge() };
       case "shuttleRun":
         return { laps: 10 + Math.floor(Math.random() * 10), timeSec: 60 + Math.floor(Math.random() * 30), badge: pickBadge() };
       case "enduranceRun":
         return { distanceKm: 2 + Math.random() * 3, pace: (5 + Math.random() * 2).toFixed(2), badge: pickBadge() };
+      case "flexibilityTest":
+        return { reachCm: 15 + Math.floor(Math.random() * 25), flexibilityScore: 60 + Math.floor(Math.random() * 40), badge: pickBadge() };
+      case "agilityLadder":
+        return { completionTime: 8 + Math.random() * 4, footworkScore: 75 + Math.floor(Math.random() * 25), badge: pickBadge() };
       case "heightWeight":
         return { heightCm: 165 + Math.floor(Math.random() * 20), weightKg: 50 + Math.floor(Math.random() * 20), badge: pickBadge() };
     }
@@ -115,17 +135,9 @@ export default function Tests() {
 
   const pairDevice = async () => {
     try {
-      setPairing("connecting");
-      if (navigator.bluetooth) {
-        await navigator.bluetooth.requestDevice({ acceptAllDevices: true });
-        setPairing("connected");
-        setBattery(80 + Math.floor(Math.random() * 20));
-      } else {
-        setPairing("connected");
-        setBattery(75);
-      }
-    } catch {
-      setPairing("disconnected");
+      await connectDevice();
+    } catch (error) {
+      console.error('Failed to pair EMG device:', error);
     }
   };
 
@@ -145,9 +157,11 @@ export default function Tests() {
           </CardHeader>
           <CardContent className="grid gap-4">
             <Tabs value={selected} onValueChange={(v) => setSelected(v as TestKey)}>
-              <TabsList className="grid grid-cols-2 md:grid-cols-5 w-full">
+              <TabsList className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 w-full overflow-x-auto">
                 {tests.map((test) => (
-                  <TabsTrigger key={test.key} value={test.key}>{test.name}</TabsTrigger>
+                  <TabsTrigger key={test.key} value={test.key} className="text-xs whitespace-nowrap">
+                    {test.name.split(' ')[0]}
+                  </TabsTrigger>
                 ))}
               </TabsList>
               {tests.map((test) => (
@@ -214,17 +228,21 @@ export default function Tests() {
           </CardContent>
         </Card>
 
+        {["pushUps", "pullUps", "flexibilityTest", "agilityLadder"].includes(selected) && (
+          <TestInstructions testKey={selected} />
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>AI Feedback</CardTitle>
           </CardHeader>
           <CardContent className="grid md:grid-cols-3 gap-4">
             <div>
-              <div className="text-sm text-muted-foreground mb-1">Coaching tips</div>
+              <div className="text-sm text-muted-foreground mb-1">EMG Coaching</div>
               <ul className="text-sm space-y-2">
-                <li>Maintain neutral spine.</li>
-                <li>Explode through hips.</li>
-                <li>Control landing with knees aligned.</li>
+                <li>Muscle activation: {emgData.activated ? 'Optimal' : 'Increase engagement'}</li>
+                <li>Fatigue level: {emgData.fatigue > 70 ? 'High - rest needed' : 'Good to continue'}</li>
+                <li>Form analysis: {emgData.muscleActivity > 60 ? 'Strong activation' : 'Focus on muscle engagement'}</li>
               </ul>
             </div>
             <div>
@@ -236,8 +254,12 @@ export default function Tests() {
               </div>
             </div>
             <div>
-              <div className="text-sm text-muted-foreground mb-1">Cheat detection</div>
-              <div className="text-sm">No suspicious edits detected</div>
+              <div className="text-sm text-muted-foreground mb-1">EMG Analysis</div>
+              <div className="text-sm">
+                {emgData.muscleActivity > 80 ? 'High performance detected' : 
+                 emgData.muscleActivity > 40 ? 'Normal muscle activity' : 
+                 'Low activation - check sensor placement'}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -247,24 +269,24 @@ export default function Tests() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>TalentBand</span>
-              <span className="text-xs text-muted-foreground">{pairing === "connected" ? `Battery ${battery ?? "--"}%` : "Not paired"}</span>
+              <span>EMG Sensor</span>
+              <span className="text-xs text-muted-foreground">{device.connected ? `Battery ${device.battery ?? "--"}%` : "Not paired"}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center gap-2">
-              <StatusDot state={pairing} />
-              <span className="text-sm">{pairing === "connected" ? "Connected" : pairing === "connecting" ? "Connecting" : "Disconnected"}</span>
+              <StatusDot state={device.connected ? "connected" : isConnecting ? "connecting" : "disconnected"} />
+              <span className="text-sm">{device.connected ? "Connected" : isConnecting ? "Connecting" : "Disconnected"}</span>
             </div>
-            <Button onClick={pairDevice} variant={pairing === "connected" ? "secondary" : "default"} className="gap-2">
-              <Watch className="h-4 w-4" /> Pair TalentBand
+            <Button onClick={device.connected ? disconnectDevice : pairDevice} variant={device.connected ? "secondary" : "default"} className="gap-2" disabled={isConnecting}>
+              <Watch className="h-4 w-4" /> {device.connected ? "Disconnect" : "Pair"} EMG Sensor
             </Button>
             <div>
               <div className="text-sm text-muted-foreground mb-1">Live Metrics</div>
               <div className="grid grid-cols-3 gap-2 text-center">
-                <Metric label="Jump force" value="1.8x BW" />
-                <Metric label="Stride balance" value="49/51" />
-                <Metric label="Pace" value="5:40 /km" />
+                <Metric label="Muscle Activity" value={`${emgData.muscleActivity.toFixed(1)}%`} />
+                <Metric label="Fatigue Level" value={`${emgData.fatigue.toFixed(1)}%`} />
+                <Metric label="Status" value={emgData.activated ? "ACTIVE" : "REST"} />
               </div>
             </div>
           </CardContent>

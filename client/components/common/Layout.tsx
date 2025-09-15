@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useI18n } from "./LanguageProvider";
 import { useAuth } from "./AuthProvider";
-import { Bell, Home, LineChart, LogOut, Medal, Settings, User, Video } from "lucide-react";
+import { Activity, Apple, Bell, Dumbbell, Home, LineChart, LogOut, Medal, Settings, Shield, User, Video } from "lucide-react";
 
 const NavItem: React.FC<{ to: string; icon: React.ReactNode; label: string }> = ({ to, icon, label }) => (
   <NavLink
@@ -42,6 +42,10 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           <nav className="hidden md:flex items-center gap-1">
             <NavItem to="/" icon={<Home className="h-4 w-4" />} label={t("dashboard")} />
             <NavItem to="/tests" icon={<Video className="h-4 w-4" />} label={t("tests")} />
+            <NavItem to="/training" icon={<Dumbbell className="h-4 w-4" />} label="Training" />
+            <NavItem to="/injury-prevention" icon={<Shield className="h-4 w-4" />} label="Safety" />
+            <NavItem to="/nutrition" icon={<Apple className="h-4 w-4" />} label="Nutrition" />
+            <NavItem to="/emg" icon={<Activity className="h-4 w-4" />} label="EMG" />
             <NavItem to="/leaderboard" icon={<Medal className="h-4 w-4" />} label={t("leaderboard")} />
             <NavItem to="/analytics" icon={<LineChart className="h-4 w-4" />} label="Analytics" />
           </nav>
@@ -94,6 +98,9 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           <div className="container flex items-center gap-1 py-2 overflow-x-auto">
             <NavItem to="/" icon={<Home className="h-4 w-4" />} label={t("dashboard")} />
             <NavItem to="/tests" icon={<Video className="h-4 w-4" />} label={t("tests")} />
+            <NavItem to="/training" icon={<Dumbbell className="h-4 w-4" />} label="Training" />
+            <NavItem to="/nutrition" icon={<Apple className="h-4 w-4" />} label="Nutrition" />
+            <NavItem to="/emg" icon={<Activity className="h-4 w-4" />} label="EMG" />
             <NavItem to="/leaderboard" icon={<Medal className="h-4 w-4" />} label={t("leaderboard")} />
             <NavItem to="/notifications" icon={<Bell className="h-4 w-4" />} label={t("notifications")} />
             <NavItem to="/settings" icon={<Settings className="h-4 w-4" />} label={t("settings")} />

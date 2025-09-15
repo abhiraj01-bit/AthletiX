@@ -9,6 +9,8 @@ import { getWeeklyCompletion } from "@/lib/storage";
 import { Dumbbell, Medal, Rocket, Sparkles, Trophy, Upload, Video, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useI18n } from "@/components/common/LanguageProvider";
+import { EMGWidget } from "@/components/EMGWidget";
+import { FeatureCards } from "@/components/FeatureCards";
 
 const trends = [
   { day: "Mon", value: 40 },
@@ -71,11 +73,11 @@ export default function Index() {
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-2">
             {[
-              { to: "/tests", label: t("verticalJump"), icon: <Rocket className="h-4 w-4" /> },
-              { to: "/tests", label: t("sitUps"), icon: <Dumbbell className="h-4 w-4" /> },
-              { to: "/tests", label: t("shuttleRun"), icon: <Sparkles className="h-4 w-4" /> },
-              { to: "/tests", label: t("enduranceRun"), icon: <Trophy className="h-4 w-4" /> },
-              { to: "/tests", label: t("heightWeight"), icon: <Medal className="h-4 w-4" /> },
+              { to: "/training", label: "AI Training", icon: <Dumbbell className="h-4 w-4" /> },
+              { to: "/injury-prevention", label: "Safety Check", icon: <Trophy className="h-4 w-4" /> },
+              { to: "/nutrition", label: "Nutrition", icon: <Sparkles className="h-4 w-4" /> },
+              { to: "/tests", label: "Quick Test", icon: <Rocket className="h-4 w-4" /> },
+              { to: "/emg", label: "EMG Monitor", icon: <Medal className="h-4 w-4" /> },
             ].map((b) => (
               <Button key={b.label} variant="outline" asChild className="justify-start gap-2">
                 <Link to={b.to}>{b.icon}{b.label}</Link>
@@ -95,16 +97,12 @@ export default function Index() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Trophy className="h-4 w-4 text-emerald-500" /> Streak</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm">You're on a 5-day streak</div>
-            <Progress value={72} className="mt-2" />
-            <div className="mt-2 text-xs text-muted-foreground">Beat your PB – AI thinks you can add 3 sit-ups today.</div>
-          </CardContent>
-        </Card>
+        <EMGWidget />
+      </section>
+
+      <section>
+        <h2 className="text-2xl font-bold mb-4">New Features</h2>
+        <FeatureCards />
       </section>
 
       <section className="grid lg:grid-cols-3 gap-6">

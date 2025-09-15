@@ -47,11 +47,15 @@ export default function Profile() {
         ...attempts.filter((a) => a.test === "verticalJump").map((a) => Number(a.data?.jumpHeightCm || 0)),
       ),
       sitUps: Math.max(0, ...attempts.filter((a) => a.test === "sitUps").map((a) => Number(a.data?.reps || 0))),
+      pushUps: Math.max(0, ...attempts.filter((a) => a.test === "pushUps").map((a) => Number(a.data?.reps || 0))),
+      pullUps: Math.max(0, ...attempts.filter((a) => a.test === "pullUps").map((a) => Number(a.data?.reps || 0))),
       shuttleRun: Math.max(0, ...attempts.filter((a) => a.test === "shuttleRun").map((a) => Number(a.data?.laps || 0))),
       enduranceRun: Math.max(
         0,
         ...attempts.filter((a) => a.test === "enduranceRun").map((a) => Number(a.data?.distanceKm || 0)),
       ),
+      flexibility: Math.max(0, ...attempts.filter((a) => a.test === "flexibilityTest").map((a) => Number(a.data?.reachCm || 0))),
+      agility: Math.min(999, ...attempts.filter((a) => a.test === "agilityLadder").map((a) => Number(a.data?.completionTime || 999))),
     };
     const total = attempts.length;
     const last = attempts[0]?.timestamp ? new Date(attempts[0].timestamp).toLocaleString() : "—";
@@ -287,7 +291,12 @@ export default function Profile() {
             <Stat label="V. Jump (cm)" value={String(stats.best.verticalJump || 0)} />
             <Stat label="Sit-ups" value={String(stats.best.sitUps || 0)} />
             <Stat label="Shuttle (laps)" value={String(stats.best.shuttleRun || 0)} />
-            <Stat label="Endurance (km)" value={String(stats.best.enduranceRun || 0)} />
+            <Stat label="Push-ups" value={String(stats.best.pushUps || 0)} />
+            <Stat label="Pull-ups" value={String(stats.best.pullUps || 0)} />
+            <Stat label="Flexibility (cm)" value={String(stats.best.flexibility || 0)} />
+            <Stat label="Agility (sec)" value={stats.best.agility === 999 ? "0" : String(stats.best.agility.toFixed(1))} />
+            <Stat label="Avg EMG Activity" value="67.2%" />
+            <Stat label="Fatigue Level" value="Low" />
           </CardContent>
         </Card>
 

@@ -11,8 +11,12 @@ import { Link } from "react-router-dom";
 const TESTS = [
   { key: "verticalJump", label: "Vertical Jump", unit: "cm", field: "jumpHeightCm" },
   { key: "sitUps", label: "Sit-ups", unit: "reps", field: "reps" },
+  { key: "pushUps", label: "Push-ups", unit: "reps", field: "reps" },
+  { key: "pullUps", label: "Pull-ups", unit: "reps", field: "reps" },
   { key: "shuttleRun", label: "Shuttle Run", unit: "laps", field: "laps" },
   { key: "enduranceRun", label: "Endurance Run", unit: "km", field: "distanceKm" },
+  { key: "flexibilityTest", label: "Flexibility", unit: "cm", field: "reachCm" },
+  { key: "agilityLadder", label: "Agility", unit: "sec", field: "completionTime" },
 ] as const;
 
 type TestKey = typeof TESTS[number]["key"];
@@ -34,6 +38,18 @@ const BENCHMARKS: Record<TestKey, Bench[]> = {
     { label: "State Level", value: 45 },
     { label: "National Standard", value: 55 },
   ],
+  pushUps: [
+    { label: "Good", value: 15 },
+    { label: "District Elite", value: 25 },
+    { label: "State Level", value: 35 },
+    { label: "National Standard", value: 45 },
+  ],
+  pullUps: [
+    { label: "Good", value: 5 },
+    { label: "District Elite", value: 10 },
+    { label: "State Level", value: 15 },
+    { label: "National Standard", value: 20 },
+  ],
   shuttleRun: [
     { label: "Good", value: 8 },
     { label: "District Elite", value: 12 },
@@ -45,6 +61,18 @@ const BENCHMARKS: Record<TestKey, Bench[]> = {
     { label: "District Elite", value: 3 },
     { label: "State Level", value: 4 },
     { label: "National Standard", value: 5 },
+  ],
+  flexibilityTest: [
+    { label: "Good", value: 15 },
+    { label: "District Elite", value: 25 },
+    { label: "State Level", value: 35 },
+    { label: "National Standard", value: 45 },
+  ],
+  agilityLadder: [
+    { label: "Good", value: 12 },
+    { label: "District Elite", value: 10 },
+    { label: "State Level", value: 8 },
+    { label: "National Standard", value: 6 },
   ],
 };
 
@@ -98,9 +126,11 @@ export default function Analytics() {
             <CardTitle className="flex items-center justify-between">
               <span>Athlete Analytics</span>
               <Tabs value={active} onValueChange={(v) => setActive(v as TestKey)}>
-                <TabsList className="grid grid-cols-2 md:grid-cols-4">
+                <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 overflow-x-auto">
                   {TESTS.map((t) => (
-                    <TabsTrigger key={t.key} value={t.key}>{t.label}</TabsTrigger>
+                    <TabsTrigger key={t.key} value={t.key} className="text-xs whitespace-nowrap">
+                      {t.label.split(' ')[0]}
+                    </TabsTrigger>
                   ))}
                 </TabsList>
               </Tabs>
@@ -155,12 +185,31 @@ export default function Analytics() {
       <div className="grid gap-6">
         <Card>
           <CardHeader>
+            <CardTitle>EMG Muscle Analysis</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <Stat title="Avg Muscle Activity" value="67.2%" />
+              <Stat title="Fatigue Level" value="23.1%" />
+            </div>
+            <ChartContainer config={{ emg: { label: "EMG", color: "hsl(var(--brand-500))" } }} className="h-32">
+              <AreaChart data={[{day:"Mon",value:45},{day:"Tue",value:52},{day:"Wed",value:67},{day:"Thu",value:71},{day:"Fri",value:58}]}>
+                <XAxis dataKey="day" hide />
+                <YAxis hide />
+                <Area dataKey="value" stroke="hsl(var(--brand-500))" fill="hsl(var(--brand-500)/.2)" />
+              </AreaChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>AI Coach Suggestions</CardTitle>
           </CardHeader>
           <CardContent className="text-sm space-y-2">
-            <Suggestion text="Add 3x plyometric sets (box jumps) twice this week." />
+            <Suggestion text="EMG shows good muscle activation - maintain current intensity." />
+            <Suggestion text="Fatigue levels optimal - you can push harder today." />
             <Suggestion text="Focus on core bracing; 2-minute planks daily." />
-            <Suggestion text="Tempo runs at 80% pace for 15 minutes." />
           </CardContent>
         </Card>
 

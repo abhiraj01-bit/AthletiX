@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import { handleDemo } from "./routes/demo";
 import { handleEMGData, getEMGHistory } from "./routes/emg";
+import { analyzeTest, getTestHistory, getTestStats, uploadVideo } from "./routes/tests";
 
 export function createServer() {
   const app = express();
@@ -23,6 +24,11 @@ export function createServer() {
   // EMG sensor routes
   app.post("/api/emg/data", handleEMGData);
   app.get("/api/emg/history/:userId", getEMGHistory);
+  
+  // Test analysis routes
+  app.post("/api/tests/analyze", uploadVideo, analyzeTest);
+  app.get("/api/tests/history/:userId", getTestHistory);
+  app.get("/api/tests/stats/:userId", getTestStats);
 
   return app;
 }

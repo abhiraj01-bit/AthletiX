@@ -1,12 +1,18 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { getAttempts } from "@/lib/storage";
 import { Link } from "react-router-dom";
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 const TESTS = [
   { key: "verticalJump", label: "Vertical Jump", unit: "cm", field: "jumpHeightCm" },
@@ -17,6 +23,8 @@ const TESTS = [
   { key: "enduranceRun", label: "Endurance Run", unit: "km", field: "distanceKm" },
   { key: "flexibilityTest", label: "Flexibility", unit: "cm", field: "reachCm" },
   { key: "agilityLadder", label: "Agility", unit: "sec", field: "completionTime" },
+  { key: "enduranceRun", label: "Endurance Run", unit: "km", field: "distanceKm" },
+  { key: "heightWeight", label: "Height/Weight", unit: "cm", field: "heightCm" },
 ] as const;
 
 type TestKey = typeof TESTS[number]["key"];
@@ -74,33 +82,146 @@ const BENCHMARKS: Record<TestKey, Bench[]> = {
     { label: "State Level", value: 8 },
     { label: "National Standard", value: 6 },
   ],
+  enduranceRun: [
+    { label: "Good", value: 2 },
+    { label: "District Elite", value: 3 },
+    { label: "State Level", value: 4 },
+    { label: "National Standard", value: 5 },
+  ],
+  heightWeight: [
+    { label: "Good", value: 160 },
+    { label: "District Elite", value: 170 },
+    { label: "State Level", value: 180 },
+    { label: "National Standard", value: 190 },
+  ],
 };
 
 export default function Analytics() {
   const [active, setActive] = useState<TestKey>("verticalJump");
-  const attempts = useMemo(() => getAttempts(), []);
+  const [apiAttempts, setApiAttempts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const localAttempts = useMemo(() => getAttempts(), []);
+  
+  // Fetch real test data from API
+  const fetchTestData = async () => {
+    setLoading(true);
+    try {
+      // Temporary: Use hardcoded test user
+      const testUserId = '00000000-0000-0000-0000-000000000001';
+      
+      const response = await fetch(`/api/tests/history/${testUserId}?limit=50`);
+      console.log('Fetching data for test user:', testUserId);
+      if (response.ok) {
+        const data = await response.json();
+        setApiAttempts(data.attempts || []);
+        console.log('Fetched test data:', data.attempts?.length || 0, 'attempts');
+      }
+    } catch (error) {
+      console.error('Failed to fetch test data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  useEffect(() => {
+    fetchTestData();
+  }, []);
+  
+  // Auto-refresh when returning to analytics page
+  useEffect(() => {
+    const handleFocus = () => fetchTestData();
+    const handleTestCompleted = () => {
+      console.log('Test completed, refreshing analytics...');
+      setTimeout(fetchTestData, 1000); // Small delay to ensure data is saved
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('testCompleted', handleTestCompleted);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('testCompleted', handleTestCompleted);
+    };
+  }, []);
+  
+  // Combine API data with local storage data
+  const attempts = useMemo(() => {
+    const combined = [...apiAttempts, ...localAttempts];
+    // Remove duplicates based on ID
+    const unique = combined.filter((attempt, index, self) => 
+      index === self.findIndex(a => a.id === attempt.id)
+    );
+    return unique.sort((a, b) => new Date(b.createdAt || b.timestamp).getTime() - new Date(a.createdAt || a.timestamp).getTime());
+  }, [apiAttempts, localAttempts]);
 
   const series = useMemo<Point[]>(() => {
     const meta = TESTS.find((t) => t.key === active)!;
+    console.log(`Analytics for ${active}:`, { meta, attempts: attempts.length });
+    
     const points = attempts
-      .filter((a) => a.test === active)
-      .map((a) => ({
-        date: new Date(a.timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-        value: Number(a.data?.[meta.field] ?? 0),
-      }))
+      .filter((a) => (a.test || a.testType) === active)
+      .map((a) => {
+        const timestamp = a.createdAt || a.timestamp;
+        const metrics = a.metrics || a.data || {};
+        console.log('Processing attempt:', { 
+          testType: a.test || a.testType, 
+          metrics, 
+          field: meta.field, 
+          value: metrics[meta.field],
+          formScore: a.formScore || a.form_score
+        });
+        return {
+          date: new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+          value: Number(metrics[meta.field] ?? 0),
+          formScore: a.formScore || a.form_score || 0,
+          aiAnalysis: a.analysisResult || a.analysis_result
+        };
+      })
       .filter((d) => !Number.isNaN(d.value) && d.value > 0)
       .reverse();
+    
+    console.log('Final points for graph:', points);
+    
     if (points.length) return points;
     // Fallback sample data if user has no attempts yet
-    return Array.from({ length: 8 }, (_, i) => ({ date: `D${i + 1}`, value: 20 + i * 4 + Math.round(Math.random() * 4) }));
+    return Array.from({ length: 8 }, (_, i) => ({ 
+      date: `D${i + 1}`, 
+      value: 20 + i * 4 + Math.round(Math.random() * 4),
+      formScore: 70 + Math.random() * 20,
+      aiAnalysis: null
+    }));
   }, [attempts, active]);
 
   const meta = TESTS.find((t) => t.key === active)!;
   const last = series.at(-1)?.value ?? 0;
   const best = Math.max(...series.map((p) => p.value));
   const avg7 = Math.round(series.slice(-7).reduce((s, p) => s + p.value, 0) / Math.min(7, series.length));
+  const avgFormScore = Math.round(series.slice(-7).reduce((s, p) => s + (p.formScore || 0), 0) / Math.min(7, series.length));
   const trendSlope = linearSlope(series.map((p, i) => [i, p.value]));
-  const projection = Math.round(last + trendSlope * 8); // ~2 months if 1 point/week
+  const projection = Math.round(last + trendSlope * 8);
+  
+  // AI Analysis insights
+  const aiInsights = useMemo(() => {
+    const recentAttempts = attempts.filter(a => (a.test || a.testType) === active).slice(0, 5);
+    const recommendations = new Set<string>();
+    const commonIssues = new Set<string>();
+    
+    recentAttempts.forEach(attempt => {
+      const analysis = attempt.analysisResult || attempt.analysis_result;
+      if (analysis?.recommendations) {
+        analysis.recommendations.forEach((rec: string) => recommendations.add(rec));
+      }
+      if (analysis?.errors) {
+        analysis.errors.forEach((error: string) => commonIssues.add(error));
+      }
+    });
+    
+    return {
+      recommendations: Array.from(recommendations).slice(0, 3),
+      issues: Array.from(commonIssues).slice(0, 2),
+      improvementTrend: trendSlope > 0 ? 'improving' : trendSlope < 0 ? 'declining' : 'stable'
+    };
+  }, [attempts, active, trendSlope]);
 
   const bench = BENCHMARKS[active];
   const nextTarget = bench.find((b) => b.value > last) ?? bench.at(-1)!;
@@ -139,22 +260,82 @@ export default function Analytics() {
           <CardContent className="grid md:grid-cols-4 gap-4">
             <Stat title="Personal Best" value={`${best} ${meta.unit}`} />
             <Stat title="Last Attempt" value={`${last} ${meta.unit}`} />
-            <Stat title="7-day Avg" value={`${avg7 || 0} ${meta.unit}`} />
-            <Stat title="Projection (8w)" value={`${projection} ${meta.unit}`} />
+            <Stat title="Avg Form Score" value={`${avgFormScore || 0}/100`} />
+            <Stat title="AI Trend" value={aiInsights.improvementTrend} />
             <div className="md:col-span-4">
-              <ChartContainer config={{ value: { label: meta.label, color: "hsl(var(--brand-500))" } }} className="h-64">
-                <AreaChart data={series}>
+              <ChartContainer 
+                config={{ 
+                  value: { label: meta.label, color: "hsl(var(--brand-500))" },
+                  formScore: { label: "Form Score", color: "hsl(var(--emerald-500))" }
+                }} 
+                className="h-64"
+              >
+                <LineChart data={series}>
                   <CartesianGrid vertical={false} strokeDasharray="3 3" />
                   <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
                   <YAxis hide />
-                  <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
-                  <Area dataKey="value" type="monotone" stroke="hsl(var(--brand-500))" fill="hsl(var(--brand-500)/.2)" />
-                </AreaChart>
+                  <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                  <Line dataKey="value" type="monotone" stroke="hsl(var(--brand-500))" strokeWidth={2} dot={{ r: 4 }} />
+                  <Line dataKey="formScore" type="monotone" stroke="hsl(var(--emerald-500))" strokeWidth={2} dot={{ r: 4 }} />
+                </LineChart>
               </ChartContainer>
             </div>
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>AI Form Analysis</CardTitle>
+          </CardHeader>
+          <CardContent className="grid md:grid-cols-2 gap-6">
+            <div>
+              <div className="text-sm text-muted-foreground mb-2">Form Score Trend</div>
+              <ChartContainer 
+                config={{ formScore: { label: "Form Score", color: "hsl(var(--emerald-500))" } }} 
+                className="h-48"
+              >
+                <AreaChart data={series.slice(-10)}>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tickLine={false} axisLine={false} />
+                  <YAxis domain={[0, 100]} />
+                  <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                  <Area 
+                    dataKey="formScore" 
+                    type="monotone" 
+                    stroke="hsl(var(--emerald-500))" 
+                    fill="hsl(var(--emerald-500)/.2)" 
+                  />
+                </AreaChart>
+              </ChartContainer>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <div className="text-sm text-muted-foreground">Current Form Score</div>
+                <div className="text-3xl font-bold text-emerald-600">{avgFormScore}/100</div>
+              </div>
+              
+              <div>
+                <div className="text-sm text-muted-foreground mb-2">Performance vs Form</div>
+                <div className="grid grid-cols-2 gap-2 text-center">
+                  <div className="p-2 rounded border">
+                    <div className="text-lg font-semibold">{last}</div>
+                    <div className="text-xs text-muted-foreground">Performance</div>
+                  </div>
+                  <div className="p-2 rounded border">
+                    <div className="text-lg font-semibold">{series.at(-1)?.formScore?.toFixed(0) || 0}</div>
+                    <div className="text-xs text-muted-foreground">Form Score</div>
+                  </div>
+                </div>
+              </div>
+              
+              <Button asChild variant="secondary" className="w-full">
+                <Link to="/tests">Improve Form</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+        
         <Card>
           <CardHeader>
             <CardTitle>Benchmark Comparison</CardTitle>
@@ -204,12 +385,53 @@ export default function Analytics() {
 
         <Card>
           <CardHeader>
-            <CardTitle>AI Coach Suggestions</CardTitle>
+            <CardTitle>AI Analysis Insights</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm space-y-2">
-            <Suggestion text="EMG shows good muscle activation - maintain current intensity." />
-            <Suggestion text="Fatigue levels optimal - you can push harder today." />
-            <Suggestion text="Focus on core bracing; 2-minute planks daily." />
+          <CardContent className="space-y-4">
+            {loading ? (
+              <div className="text-sm text-muted-foreground">Loading AI insights...</div>
+            ) : (
+              <>
+                {aiInsights.recommendations.length > 0 && (
+                  <div>
+                    <div className="text-sm font-medium mb-2">AI Recommendations:</div>
+                    <div className="space-y-2">
+                      {aiInsights.recommendations.map((rec, idx) => (
+                        <Suggestion key={idx} text={rec} type="recommendation" />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {aiInsights.issues.length > 0 && (
+                  <div>
+                    <div className="text-sm font-medium mb-2">Common Issues:</div>
+                    <div className="space-y-2">
+                      {aiInsights.issues.map((issue, idx) => (
+                        <Suggestion key={idx} text={issue} type="warning" />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                  <div className="text-sm font-medium text-blue-800">
+                    Performance Trend: {aiInsights.improvementTrend}
+                  </div>
+                  <div className="text-xs text-blue-600 mt-1">
+                    {aiInsights.improvementTrend === 'improving' && 'Keep up the great work! Your form is getting better.'}
+                    {aiInsights.improvementTrend === 'declining' && 'Focus on technique over speed. Consider rest or form practice.'}
+                    {aiInsights.improvementTrend === 'stable' && 'Consistent performance. Try varying intensity to improve.'}
+                  </div>
+                </div>
+                
+                {aiInsights.recommendations.length === 0 && aiInsights.issues.length === 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    Complete more AI-analyzed tests to get personalized insights.
+                  </div>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -273,6 +495,13 @@ function linearSlope(points: Array<[number, number]>): number {
   return (n * sumXY - sumX * sumY) / denom;
 }
 
-function Suggestion({ text }: { text: string }) {
-  return <div className="rounded-md border p-2">{text}</div>;
+function Suggestion({ text, type = "recommendation" }: { text: string; type?: "recommendation" | "warning" }) {
+  const bgColor = type === "warning" ? "bg-yellow-50 border-yellow-200" : "bg-green-50 border-green-200";
+  const textColor = type === "warning" ? "text-yellow-800" : "text-green-800";
+  
+  return (
+    <div className={`rounded-md border p-2 ${bgColor}`}>
+      <div className={`text-sm ${textColor}`}>{text}</div>
+    </div>
+  );
 }

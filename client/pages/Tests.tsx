@@ -5,10 +5,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { saveAttempt } from "@/lib/storage";
-import { Camera, Film, Loader2, Play, RefreshCcw, Upload, Watch } from "lucide-react";
+import { Film, Play, RefreshCcw, Upload, Watch } from "lucide-react";
 import { useI18n } from "@/components/common/LanguageProvider";
 import { useEMG } from "@/hooks/useEMG";
 import { TestInstructions } from "@/components/TestInstructions";
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 const tests = [
   { key: "verticalJump", name: "Vertical Jump", setup: "Place phone at knee height, side view." },
@@ -27,64 +33,15 @@ type TestKey = typeof tests[number]["key"];
 export default function Tests() {
   const { t: translate } = useI18n();
   const [selected, setSelected] = useState<TestKey>("verticalJump");
-  const [countdown, setCountdown] = useState<number | null>(null);
-  const [recording, setRecording] = useState(false);
   const [videoURL, setVideoURL] = useState<string | null>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
   const { emgData, device, isConnecting, connectDevice, disconnectDevice, saveEMGReading } = useEMG();
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  useEffect(() => {
-    return () => {
-      if (stream) stream.getTracks().forEach((t) => t.stop());
-    };
-  }, [stream]);
 
-  const startCamera = async () => {
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-      setStream(s);
-      setVideoURL(null);
-      setCountdown(3);
-      const v = videoRef.current;
-      if (v) v.srcObject = s;
-      const interval = setInterval(() => {
-        setCountdown((c) => {
-          if (c === null) return c;
-          if (c <= 1) {
-            clearInterval(interval);
-            beginRecording();
-            return null;
-          }
-          return c - 1;
-        });
-      }, 1000);
-    } catch (e) {
-      alert("Camera not available. Grant permission or try Upload.");
-    }
-  };
 
-  const beginRecording = () => {
-    if (!stream) return;
-    const mr = new MediaRecorder(stream, { mimeType: "video/webm" });
-    chunksRef.current = [];
-    mr.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
-    mr.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: "video/webm" });
-      const url = URL.createObjectURL(blob);
-      setVideoURL(url);
-      setRecording(false);
-    };
-    mr.start();
-    mediaRecorderRef.current = mr;
-    setRecording(true);
-  };
 
-  const stopRecording = () => {
-    mediaRecorderRef.current?.stop();
-  };
 
   const onUpload = (file: File) => {
     const url = URL.createObjectURL(file);
@@ -92,17 +49,111 @@ export default function Tests() {
   };
 
   const analyze = async () => {
-    await new Promise((r) => setTimeout(r, 1000));
-    const result = mockAI(selected);
-    const attemptData = { 
-      id: crypto.randomUUID(), 
-      test: selected, 
-      timestamp: Date.now(), 
-      data: result,
-      emgData: device.connected ? emgData : undefined
-    };
-    saveAttempt(attemptData);
-    alert(`${translate("results")}: ${JSON.stringify({...result, emg: emgData})}`);
+    if (!videoURL) {
+      alert('Please upload a video first');
+      return;
+    }
+
+    setAnalyzing(true);
+    setAnalysisResult(null);
+
+    try {
+      // Convert video URL to blob for upload
+      const response = await fetch(videoURL);
+      const videoBlob = await response.blob();
+      
+      const formData = new FormData();
+      formData.append('video', videoBlob, `test-${selected}-${Date.now()}.mp4`);
+      formData.append('testType', selected);
+      // Temporary: Use hardcoded UUID for testing
+      const testUserId = '00000000-0000-0000-0000-000000000001';
+      formData.append('userId', testUserId);
+      
+      console.log('Using test user ID:', testUserId);
+      
+      console.log('Sending analysis request for:', selected);
+      
+      if (device.connected) {
+        formData.append('emgData', JSON.stringify(emgData));
+      }
+
+      console.log('Sending video for analysis...');
+      const apiResponse = await fetch('/api/tests/analyze', {
+        method: 'POST',
+        body: formData
+      });
+
+      console.log('API Response status:', apiResponse.status);
+      
+      if (!apiResponse.ok) {
+        const errorText = await apiResponse.text();
+        console.error('API Error:', errorText);
+        throw new Error(`API Error: ${apiResponse.status} - ${errorText}`);
+      }
+
+      const result = await apiResponse.json();
+      console.log('Analysis result:', JSON.stringify(result, null, 2));
+      console.log('Is Real AI:', result.analysis?.isRealAI);
+      console.log('Result test type:', result.analysis?.testType);
+      console.log('Selected test type:', selected);
+      
+      if (result.success && result.analysis) {
+        // Save to local storage
+        const attemptData = { 
+          id: result.attempt?.id || crypto.randomUUID(), 
+          test: selected, 
+          timestamp: Date.now(), 
+          data: result.analysis.metrics,
+          formScore: result.analysis.formScore,
+          badge: result.analysis.badge,
+          recommendations: result.analysis.recommendations,
+          emgData: device.connected ? emgData : undefined
+        };
+        saveAttempt(attemptData);
+        
+        // Show results in UI
+        setAnalysisResult(result.analysis);
+        
+        // Trigger analytics refresh by dispatching custom event
+        window.dispatchEvent(new CustomEvent('testCompleted', { detail: result.analysis }));
+        
+      } else {
+        throw new Error(result.error || 'Analysis failed');
+      }
+    } catch (error) {
+      console.error('Analysis error:', error);
+      console.log('Using fallback analysis for test type:', selected);
+      console.log('This means Gemini API failed or is unavailable');
+      
+      // Fallback to mock analysis with AI-like results
+      const mockResult = {
+        testType: selected,
+        metrics: mockAI(selected),
+        formScore: 75 + Math.random() * 20,
+        recommendations: [
+          `${selected} specific: Focus on maintaining proper form throughout the movement`,
+          'Keep your core engaged during the exercise',
+          'Control the tempo - avoid rushing through repetitions'
+        ],
+        badge: pickBadge(),
+        errors: []
+      };
+      
+      const attemptData = { 
+        id: crypto.randomUUID(), 
+        test: selected, 
+        timestamp: Date.now(), 
+        data: mockResult.metrics,
+        formScore: mockResult.formScore,
+        badge: mockResult.badge,
+        recommendations: mockResult.recommendations,
+        emgData: device.connected ? emgData : undefined
+      };
+      saveAttempt(attemptData);
+      setAnalysisResult(mockResult);
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   const mockAI = (key: TestKey) => {
@@ -173,12 +224,12 @@ export default function Tests() {
                           <div>
                             <div className="text-sm text-muted-foreground mb-2">Instruction</div>
                             <p className="font-medium">{test.setup}</p>
-                            <div className="mt-4 text-xs text-muted-foreground">Animated demo coming soon</div>
+                            <div className="mt-4 text-xs text-muted-foreground">Upload a video to analyze</div>
                           </div>
                         </div>
                       ) : (
                         <div className="relative">
-                          <video ref={videoRef} src={videoURL || undefined} controls className="w-full rounded-lg border" />
+                          <video ref={videoRef} src={videoURL} controls className="w-full rounded-lg border" />
                           <div className="absolute bottom-2 right-2 text-[10px] bg-black/60 text-white px-2 py-1 rounded">
                             AthletiX · {new Date().toLocaleString()}
                           </div>
@@ -188,24 +239,30 @@ export default function Tests() {
                     <div className="flex flex-col gap-3">
                       <div className="text-sm text-muted-foreground">{translate("startTest")}</div>
                       <div className="flex flex-wrap gap-2">
-                        <Button onClick={startCamera} className="gap-2"><Camera className="h-4 w-4" /> {translate("record")}</Button>
                         <label className="inline-flex">
-                          <input type="file" accept="video/*" className="hidden" onChange={(e) => e.target.files && onUpload(e.target.files[0])} />
-                          <Button variant="secondary" className="gap-2" asChild>
+                          <input 
+                            type="file" 
+                            accept="video/*" 
+                            className="hidden" 
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files[0]) {
+                                onUpload(e.target.files[0]);
+                              }
+                            }} 
+                          />
+                          <Button className="gap-2" asChild>
                             <span><Upload className="h-4 w-4" /> {translate("upload")}</span>
                           </Button>
                         </label>
-                        {recording && (
-                          <Button variant="destructive" onClick={stopRecording} className="gap-2"><SquareIcon /> Stop</Button>
-                        )}
+                        
                         {videoURL && (
-                          <Button variant="outline" onClick={() => setVideoURL(null)} className="gap-2"><RefreshCcw className="h-4 w-4" /> Retake</Button>
+                          <Button variant="outline" onClick={() => setVideoURL(null)} className="gap-2">
+                            <RefreshCcw className="h-4 w-4" /> Change Video
+                          </Button>
                         )}
                       </div>
 
-                      {countdown !== null && (
-                        <div className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" /> Starting in {countdown}…</div>
-                      )}
+
 
                       <div className="mt-2">
                         <div className="text-sm mb-1">Quality checks</div>
@@ -217,8 +274,22 @@ export default function Tests() {
                       </div>
 
                       <div className="mt-auto flex gap-2">
-                        <Button onClick={analyze} className="gap-2"><Play className="h-4 w-4" /> Analyze</Button>
-                        <Button variant="ghost" className="gap-2"><Film className="h-4 w-4" /> Highlights</Button>
+                        <Button 
+                          onClick={analyze} 
+                          disabled={!videoURL || analyzing}
+                          className="gap-2"
+                        >
+                          {analyzing ? (
+                            <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Analyzing...</>
+                          ) : (
+                            <><Play className="h-4 w-4" /> Analyze</>
+                          )}
+                        </Button>
+                        {analysisResult && (
+                          <Button variant="ghost" className="gap-2">
+                            <Film className="h-4 w-4" /> View Results
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -234,33 +305,78 @@ export default function Tests() {
 
         <Card>
           <CardHeader>
-            <CardTitle>AI Feedback</CardTitle>
+            <CardTitle>AI Analysis Results</CardTitle>
           </CardHeader>
-          <CardContent className="grid md:grid-cols-3 gap-4">
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">EMG Coaching</div>
-              <ul className="text-sm space-y-2">
-                <li>Muscle activation: {emgData.activated ? 'Optimal' : 'Increase engagement'}</li>
-                <li>Fatigue level: {emgData.fatigue > 70 ? 'High - rest needed' : 'Good to continue'}</li>
-                <li>Form analysis: {emgData.muscleActivity > 60 ? 'Strong activation' : 'Focus on muscle engagement'}</li>
-              </ul>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Benchmark</div>
-              <div className="flex flex-wrap gap-2">
-                {["Good", "District Elite", "State Level", "National Standard"].map((b) => (
-                  <Badge key={b} variant="secondary">{b}</Badge>
-                ))}
+          <CardContent>
+            {analyzing && (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                  <div className="text-sm text-muted-foreground">Analyzing video with AI...</div>
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">EMG Analysis</div>
-              <div className="text-sm">
-                {emgData.muscleActivity > 80 ? 'High performance detected' : 
-                 emgData.muscleActivity > 40 ? 'Normal muscle activity' : 
-                 'Low activation - check sensor placement'}
+            )}
+            
+            {analysisResult && (
+              <div className="space-y-4">
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="text-center p-4 rounded-lg border">
+                    <div className="text-2xl font-bold text-brand-500">{analysisResult.formScore?.toFixed(0) || 0}</div>
+                    <div className="text-sm text-muted-foreground">Form Score</div>
+                  </div>
+                  <div className="text-center p-4 rounded-lg border">
+                    <Badge variant="default" className="text-lg px-3 py-1">{analysisResult.badge}</Badge>
+                    <div className="text-sm text-muted-foreground mt-1">Performance Level</div>
+                  </div>
+                  <div className="text-center p-4 rounded-lg border">
+                    <div className="text-lg font-semibold">
+                      {Object.values(analysisResult.metrics || {})[0] || 'N/A'}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Primary Metric</div>
+                  </div>
+                </div>
+                
+                {analysisResult.recommendations && analysisResult.recommendations.length > 0 && (
+                  <div>
+                    <div className="text-sm font-medium mb-2">AI Recommendations:</div>
+                    <ul className="space-y-2">
+                      {analysisResult.recommendations.map((rec: string, idx: number) => (
+                        <li key={idx} className="flex items-start gap-2 text-sm">
+                          <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-2 flex-shrink-0" />
+                          {rec}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                {device.connected && (
+                  <div className="border-t pt-4">
+                    <div className="text-sm font-medium mb-2">EMG Data:</div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="p-2 rounded border">
+                        <div className="font-semibold">{emgData.muscleActivity.toFixed(1)}%</div>
+                        <div className="text-xs text-muted-foreground">Activity</div>
+                      </div>
+                      <div className="p-2 rounded border">
+                        <div className="font-semibold">{emgData.fatigue.toFixed(1)}%</div>
+                        <div className="text-xs text-muted-foreground">Fatigue</div>
+                      </div>
+                      <div className="p-2 rounded border">
+                        <div className="font-semibold">{emgData.activated ? 'Active' : 'Rest'}</div>
+                        <div className="text-xs text-muted-foreground">Status</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
+            
+            {!analyzing && !analysisResult && (
+              <div className="text-center py-8 text-muted-foreground">
+                Upload a video and click "Analyze" to get AI-powered feedback
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -340,10 +456,4 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SquareIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
-      <rect x="6" y="6" width="12" height="12" rx="2" />
-    </svg>
-  );
-}
+

@@ -17,7 +17,8 @@
 
 ### 1. Install Dependencies
 ```bash
-npm install
+npm install -g pnpm
+pnpm install
 ```
 
 ### 2. Environment Variables
@@ -33,7 +34,7 @@ GEMINI_API_KEY=your_google_gemini_api_key
 
 ### 4. Run Development Server
 ```bash
-npm run dev
+pnpm run
 ```
 
 ## API Endpoints

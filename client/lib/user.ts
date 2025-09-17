@@ -23,6 +23,11 @@ export type NotificationItem = {
   type?: "info" | "rank" | "update" | "trial";
 };
 
+// Make storage keys user-specific
+function getUserKey(baseKey: string, userId?: string): string {
+  return userId ? `${baseKey}_${userId}` : baseKey;
+}
+
 const KEY_PROFILE = "tt360_profile";
 const KEY_SETTINGS = "tt360_settings";
 const KEY_NOTIFS = "tt360_notifications";
@@ -35,16 +40,18 @@ export function getOrCreateId(): string {
   return id;
 }
 
-export function getProfile(): Profile {
+export function getProfile(userId?: string): Profile {
   try {
-    const raw = localStorage.getItem(KEY_PROFILE);
+    const key = getUserKey(KEY_PROFILE, userId);
+    const raw = localStorage.getItem(key);
     if (raw) return JSON.parse(raw);
   } catch {}
-  return { id: getOrCreateId(), name: "", age: null, gender: "", district: "", sport: "" };
+  return { id: userId || getOrCreateId(), name: "", age: null, gender: "", district: "", sport: "" };
 }
 
-export function saveProfile(p: Profile) {
-  localStorage.setItem(KEY_PROFILE, JSON.stringify(p));
+export function saveProfile(p: Profile, userId?: string) {
+  const key = getUserKey(KEY_PROFILE, userId);
+  localStorage.setItem(key, JSON.stringify(p));
 }
 
 export function getSettings(): AppSettings {

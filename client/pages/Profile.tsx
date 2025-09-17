@@ -13,25 +13,67 @@ import { toast } from "sonner";
 
 export default function Profile() {
   const { user } = useAuth();
-  const [profile, setProfile] = useState(() => {
-    const localProfile = getProfile();
-    // Merge with Supabase user data
-    return {
-      ...localProfile,
-      name: localProfile.name || user?.user_metadata?.name || '',
-      district: localProfile.district || user?.user_metadata?.district || '',
-      sport: localProfile.sport || user?.user_metadata?.sport || '',
-    };
+  const [profile, setProfile] = useState({
+    id: user?.id || '',
+    email: user?.email || '',
+    name: user?.user_metadata?.name || '',
+    age: null,
+    gender: '',
+    district: user?.user_metadata?.district || '',
+    sport: user?.user_metadata?.sport || '',
+    photoUrl: ''
   });
+  
+  // Load profile from database with localStorage migration
+  useEffect(() => {
+    if (user?.id) {
+      console.log('Loading profile for user:', user.id);
+      fetch(`/api/profile/${user.id}`)
+        .then(res => {
+          console.log('Profile API response status:', res.status);
+          return res.json();
+        })
+        .then(data => {
+          console.log('Profile API response:', JSON.stringify(data, null, 2));
+          console.log('API response data:', data);
+          if (data.success && data.profile) {
+            // Profile exists in database - load it
+            console.log('Loading profile from database:', data.profile);
+            setProfile({
+              id: user.id,
+              email: data.profile.email || user?.email || '',
+              name: data.profile.name || '',
+              age: data.profile.age || null,
+              gender: data.profile.gender || '',
+              district: data.profile.district || '',
+              sport: data.profile.sport || '',
+              photoUrl: data.profile.photo_url || ''
+            });
+          } else {
+            // No profile in database - use auth data as defaults
+            console.log('No profile in database, using auth defaults');
+            setProfile({
+              id: user.id,
+              email: user?.email || '',
+              name: user?.user_metadata?.name || '',
+              age: null,
+              gender: '',
+              district: user?.user_metadata?.district || '',
+              sport: user?.user_metadata?.sport || '',
+              photoUrl: ''
+            });
+          }
+        })
+        .catch(error => {
+          console.error('Profile API error:', error);
+          toast('Failed to load profile');
+        });
+    }
+  }, [user?.id]);
   const [editing, setEditing] = useState(!profile.name);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    // Ensure we always persist latest profile on unload
-    const onBeforeUnload = () => saveProfile(profile);
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [profile]);
+  // Remove beforeunload since we're using database now
 
   const initials = useMemo(
     () => (profile.name ? profile.name.split(" ").map((s) => s[0]).slice(0, 2).join("") : "AX"),
@@ -62,10 +104,38 @@ export default function Profile() {
     return { best, total, last };
   }, [attempts]);
 
-  const save = () => {
-    saveProfile(profile);
-    setEditing(false);
-    toast("Profile saved");
+  const save = async () => {
+    if (!user?.id) return;
+    
+    console.log('Saving profile with user email:', user.email);
+    console.log('Full user object:', user);
+    
+    try {
+      const response = await fetch(`/api/profile/${user.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email,
+          name: profile.name,
+          age: profile.age,
+          gender: profile.gender,
+          district: profile.district,
+          sport: profile.sport,
+          photo_url: profile.photoUrl
+        })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setEditing(false);
+        toast("Profile saved to database");
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      console.error('Save error:', error);
+      toast("Failed to save profile");
+    }
   };
 
   const share = async () => {

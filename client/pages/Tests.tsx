@@ -65,11 +65,15 @@ export default function Tests() {
       const formData = new FormData();
       formData.append('video', videoBlob, `test-${selected}-${Date.now()}.mp4`);
       formData.append('testType', selected);
-      // Temporary: Use hardcoded UUID for testing
-      const testUserId = '00000000-0000-0000-0000-000000000001';
-      formData.append('userId', testUserId);
+      // Get authenticated user ID from Supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert('Please log in to analyze videos');
+        return;
+      }
+      formData.append('userId', user.id);
       
-      console.log('Using test user ID:', testUserId);
+      console.log('Using authenticated user ID:', user.id);
       
       console.log('Sending analysis request for:', selected);
       

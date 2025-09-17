@@ -6,6 +6,8 @@ export interface DatabaseAdapter {
   getTestHistory(userId: string, testType?: string, limit?: number): Promise<TestAttempt[]>;
   getUserStats(userId: string): Promise<UserStats>;
   saveEMGReading(reading: EMGReading): Promise<void>;
+  getProfile(userId: string): Promise<UserProfile | null>;
+  saveProfile(profile: UserProfile): Promise<UserProfile>;
 }
 
 export interface TestAttempt {
@@ -38,6 +40,19 @@ export interface UserStats {
   bestPerformances: Record<string, any>;
   recentTrend: 'improving' | 'declining' | 'stable';
   weeklyProgress: number;
+}
+
+export interface UserProfile {
+  id: string;
+  email?: string;
+  name?: string;
+  age?: number;
+  gender?: string;
+  district?: string;
+  sport?: string;
+  photo_url?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // In-memory implementation for development/testing
@@ -74,6 +89,16 @@ class InMemoryDatabase implements DatabaseAdapter {
     this.emgReadings.unshift(reading);
   }
 
+  async getProfile(userId: string): Promise<UserProfile | null> {
+    // Mock implementation for in-memory
+    return null;
+  }
+
+  async saveProfile(profile: UserProfile): Promise<UserProfile> {
+    // Mock implementation for in-memory
+    return profile;
+  }
+
   private calculateBestPerformances(attempts: TestAttempt[]): Record<string, any> {
     const testGroups = attempts.reduce((groups, attempt) => {
       if (!groups[attempt.testType]) groups[attempt.testType] = [];
@@ -96,8 +121,20 @@ class InMemoryDatabase implements DatabaseAdapter {
 class SupabaseDatabase implements DatabaseAdapter {
   private supabase = createClient(
     process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL!,
-    process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    }
   );
+  
+  constructor() {
+    console.log('Supabase URL:', process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL);
+    console.log('Using key type:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SERVICE_ROLE' : 'ANON');
+    console.log('Service role key exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+  }
   private fallback = new InMemoryDatabase();
 
   async saveTestAttempt(attempt: TestAttempt): Promise<TestAttempt> {
@@ -202,6 +239,63 @@ class SupabaseDatabase implements DatabaseAdapter {
       console.warn('Supabase unavailable, using fallback:', error);
       return this.fallback.saveEMGReading(reading);
     }
+  }
+
+  async getProfile(userId: string): Promise<UserProfile | null> {
+    try {
+      const { data, error } = await this.supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+      return data ? this.mapProfile(data) : null;
+    } catch (error) {
+      console.warn('Supabase profile fetch failed:', error);
+      return null;
+    }
+  }
+
+  async saveProfile(profile: UserProfile): Promise<UserProfile> {
+    try {
+      const { data, error } = await this.supabase
+        .from('profiles')
+        .upsert({
+          id: profile.id,
+          email: profile.email,
+          name: profile.name,
+          age: profile.age,
+          gender: profile.gender,
+          district: profile.district,
+          sport: profile.sport,
+          photo_url: profile.photo_url,
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return this.mapProfile(data);
+    } catch (error) {
+      console.warn('Supabase profile save failed:', error);
+      return profile;
+    }
+  }
+
+  private mapProfile(data: any): UserProfile {
+    return {
+      id: data.id,
+      email: data.email,
+      name: data.name,
+      age: data.age,
+      gender: data.gender,
+      district: data.district,
+      sport: data.sport,
+      photo_url: data.photo_url,
+      created_at: data.created_at,
+      updated_at: data.updated_at
+    };
   }
 
   private mapTestAttempt(data: any): TestAttempt {

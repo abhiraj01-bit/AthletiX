@@ -106,11 +106,12 @@ export default function Analytics() {
   const fetchTestData = async () => {
     setLoading(true);
     try {
-      // Temporary: Use hardcoded test user
-      const testUserId = '00000000-0000-0000-0000-000000000001';
+      // Get authenticated user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
       
-      const response = await fetch(`/api/tests/history/${testUserId}?limit=50`);
-      console.log('Fetching data for test user:', testUserId);
+      const response = await fetch(`/api/tests/history/${user.id}?limit=50`);
+      console.log('Fetching data for authenticated user:', user.id);
       if (response.ok) {
         const data = await response.json();
         setApiAttempts(data.attempts || []);

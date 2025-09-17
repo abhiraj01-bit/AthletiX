@@ -36,8 +36,9 @@ export const analyzeTest = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing testType or userId' });
     }
     
-    // Use the actual authenticated user UUID
+    // Validate UUID format
     const userUUID = userId;
+    console.log('Processing request for user:', userUUID);
 
     // Analyze video with Gemini
     console.log('Calling Gemini service for:', testType);

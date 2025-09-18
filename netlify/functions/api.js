@@ -43,8 +43,15 @@ app.get('/api/profile/:userId', async (req, res) => {
 
 app.post('/api/profile/:userId', async (req, res) => {
   try {
+    console.log('Netlify function - Save profile request');
+    console.log('Environment check:', {
+      hasSupabaseUrl: !!process.env.SUPABASE_URL,
+      hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY
+    });
+    
     const { userId } = req.params;
     const profileData = req.body;
+    console.log('Profile data:', profileData);
     
     const { data, error } = await supabase
       .from('profiles')

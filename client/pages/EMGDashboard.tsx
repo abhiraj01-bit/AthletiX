@@ -177,7 +177,7 @@ export default function EMGDashboard() {
       {/* Recommendations */}
       <Card>
         <CardHeader>
-          <CardTitle>AI Recommendations</CardTitle>
+          <CardTitle>Smart Recommendations</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {emgData.fatigue > 70 && (

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar, Clock, Target, Zap, CheckCircle, Play } from "lucide-react";
-import { generateAIRecommendations } from "@/lib/aiRecommendations";
+import { generateSmartRecommendations } from "@/lib/aiRecommendations";
 import APIService from "@/lib/api";
 
 function WorkoutHistory() {
@@ -60,7 +60,7 @@ function WorkoutHistory() {
   );
 }
 
-const generateAIWorkout = (userStats: any) => {
+const generateSmartWorkout = (userStats: any) => {
   const workouts = [
     {
       id: "strength-focus",
@@ -109,21 +109,28 @@ const generateAIWorkout = (userStats: any) => {
 export default function TrainingPlans() {
   const [activeWorkout, setActiveWorkout] = useState<string | null>(null);
   const [completedExercises, setCompletedExercises] = useState<Set<string>>(new Set());
-  const [aiRecommendations, setAiRecommendations] = useState(null);
+  const [smartRecommendations, setSmartRecommendations] = useState(null);
 
   useEffect(() => {
     const loadRecommendations = async () => {
       try {
         const user = await APIService.getCurrentUser();
         if (user) {
-          const attempts = await APIService.getTestHistory(user.id, 10);
-          if (attempts.length > 0) {
-            const recommendations = generateAIRecommendations(attempts);
-            setAiRecommendations(recommendations);
+          // Load smart training plans from API
+          const trainingData = await APIService.getTrainingPlans(user.id);
+          setSmartRecommendations(trainingData);
+          
+          // Fallback to old method if API fails
+          if (!trainingData.plan) {
+            const attempts = await APIService.getTestHistory(user.id, 10);
+            if (attempts.length > 0) {
+              const recommendations = generateSmartRecommendations(attempts);
+              setSmartRecommendations(recommendations);
+            }
           }
         }
       } catch (error) {
-        console.error('Failed to load AI recommendations:', error);
+        console.error('Failed to load smart recommendations:', error);
       }
     };
     loadRecommendations();
@@ -144,7 +151,7 @@ export default function TrainingPlans() {
     };
   }, []);
 
-  const workouts = generateAIWorkout(userStats);
+  const workouts = generateSmartWorkout(userStats);
 
   const toggleExercise = (exerciseId: string) => {
     const newCompleted = new Set(completedExercises);
@@ -169,17 +176,17 @@ export default function TrainingPlans() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">AI Training Plans</h1>
+          <h1 className="text-3xl font-bold">Smart Training Plans</h1>
           <p className="text-muted-foreground">Personalized workouts based on your performance</p>
         </div>
       </div>
 
-      {/* AI Recommendations */}
+      {/* Smart Recommendations */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-brand-500" />
-            AI Training Recommendations
+            Smart Training Recommendations
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -188,8 +195,8 @@ export default function TrainingPlans() {
               <div>
                 <div className="text-sm text-muted-foreground mb-1">Training Focus</div>
                 <div className="space-y-1">
-                  {aiRecommendations ? (
-                    aiRecommendations.training.focus.map((focus, idx) => (
+                  {smartRecommendations?.plan?.focus ? (
+                    smartRecommendations.plan.focus.map((focus, idx) => (
                       <div key={idx} className="text-sm font-medium">• {focus}</div>
                     ))
                   ) : (
@@ -200,9 +207,9 @@ export default function TrainingPlans() {
               <div>
                 <div className="text-sm text-muted-foreground mb-1">Recommended Exercises</div>
                 <div className="space-y-1">
-                  {aiRecommendations ? (
-                    aiRecommendations.training.exercises.slice(0, 3).map((exercise, idx) => (
-                      <div key={idx} className="text-sm">• {exercise}</div>
+                  {smartRecommendations?.plan?.exercises ? (
+                    smartRecommendations.plan.exercises.slice(0, 3).map((exercise, idx) => (
+                      <div key={idx} className="text-sm">• {exercise.name}</div>
                     ))
                   ) : (
                     <div className="text-sm text-muted-foreground">• Complete fitness assessment</div>
@@ -212,11 +219,11 @@ export default function TrainingPlans() {
               <div className="space-y-2">
                 <div>
                   <div className="text-sm text-muted-foreground">Frequency</div>
-                  <div className="font-semibold">{aiRecommendations?.training.frequency || "Complete tests"}</div>
+                  <div className="font-semibold">{smartRecommendations?.plan?.schedule || "Complete tests"}</div>
                 </div>
                 <div>
-                  <div className="text-sm text-muted-foreground">Intensity</div>
-                  <div className="font-semibold">{aiRecommendations?.training.intensity || "Complete tests"}</div>
+                  <div className="text-sm text-muted-foreground">Difficulty</div>
+                  <div className="font-semibold">{smartRecommendations?.plan?.difficulty || "Complete tests"}</div>
                 </div>
               </div>
             </div>

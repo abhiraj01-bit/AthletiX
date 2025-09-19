@@ -37,7 +37,7 @@ export default function Index() {
               {t("greeting")}, Athlete! Crush your goals this week.
             </h1>
             <p className="mt-2 text-sm md:text-base text-muted-foreground max-w-prose">
-              Gamified assessments, instant AI feedback, and leaderboards to keep you motivated.
+              Advanced biomechanics analysis, real-time performance feedback, and competitive rankings.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button asChild className="gap-2"><Link to="/tests"><Video className="h-4 w-4" /> {t("startTest")}</Link></Button>
@@ -73,7 +73,7 @@ export default function Index() {
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-2">
             {[
-              { to: "/training", label: "AI Training", icon: <Dumbbell className="h-4 w-4" /> },
+              { to: "/training", label: "Smart Training", icon: <Dumbbell className="h-4 w-4" /> },
               { to: "/injury-prevention", label: "Safety Check", icon: <Trophy className="h-4 w-4" /> },
               { to: "/nutrition", label: "Nutrition", icon: <Sparkles className="h-4 w-4" /> },
               { to: "/tests", label: "Quick Test", icon: <Rocket className="h-4 w-4" /> },

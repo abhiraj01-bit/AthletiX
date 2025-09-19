@@ -1,6 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Generic database interface - can be implemented for any database
+export interface LeaderboardEntry {
+  userId: string;
+  name: string;
+  district: string;
+  state: string;
+  sport: string;
+  score: number;
+  badge: string;
+  rank: number;
+}
+
 export interface DatabaseAdapter {
   saveTestAttempt(attempt: TestAttempt): Promise<TestAttempt>;
   getTestHistory(userId: string, testType?: string, limit?: number): Promise<TestAttempt[]>;
@@ -8,6 +19,7 @@ export interface DatabaseAdapter {
   saveEMGReading(reading: EMGReading): Promise<void>;
   getProfile(userId: string): Promise<UserProfile | null>;
   saveProfile(profile: UserProfile): Promise<UserProfile>;
+  getLeaderboard(level: 'district' | 'state' | 'national', sport?: string, region?: string, limit?: number): Promise<LeaderboardEntry[]>;
 }
 
 export interface TestAttempt {
@@ -97,6 +109,48 @@ class InMemoryDatabase implements DatabaseAdapter {
   async saveProfile(profile: UserProfile): Promise<UserProfile> {
     // Mock implementation for in-memory
     return profile;
+  }
+
+  async getLeaderboard(level: 'district' | 'state' | 'national', sport?: string, region?: string, limit = 100): Promise<LeaderboardEntry[]> {
+    const userScores = new Map<string, { bestScore: number; attempts: TestAttempt[]; profile: any }>();
+    
+    this.testAttempts.forEach(attempt => {
+      if (!userScores.has(attempt.userId)) {
+        userScores.set(attempt.userId, { bestScore: 0, attempts: [], profile: null });
+      }
+      const userScore = userScores.get(attempt.userId)!;
+      userScore.attempts.push(attempt);
+      userScore.bestScore = Math.max(userScore.bestScore, attempt.formScore);
+    });
+
+    // Return empty if no real data
+    if (userScores.size === 0) {
+      return [];
+    }
+
+    const leaderboard: LeaderboardEntry[] = [];
+    userScores.forEach((data, userId) => {
+      const profile = data.profile || { name: `User ${userId.slice(0, 8)}`, district: 'Unknown', state: 'Unknown', sport: 'Athletics' };
+      const bestAttempt = data.attempts.length > 0 ? data.attempts.reduce((best, current) => 
+        current.formScore > best.formScore ? current : best
+      ) : null;
+      
+      leaderboard.push({
+        userId,
+        name: profile.name,
+        district: profile.district,
+        state: profile.state,
+        sport: profile.sport,
+        score: data.bestScore,
+        badge: bestAttempt?.badge || (data.bestScore >= 90 ? 'National Standard' : data.bestScore >= 80 ? 'State Level' : data.bestScore >= 70 ? 'District Elite' : 'Good'),
+        rank: 0
+      });
+    });
+
+    return leaderboard
+      .sort((a, b) => b.score - a.score)
+      .map((entry, index) => ({ ...entry, rank: index + 1 }))
+      .slice(0, limit);
   }
 
   private calculateBestPerformances(attempts: TestAttempt[]): Record<string, any> {
@@ -333,3 +387,88 @@ class SupabaseDatabase implements DatabaseAdapter {
 
 // Export database instance - use Supabase by default
 export const db: DatabaseAdapter = new SupabaseDatabase();
+
+// Add leaderboard method to SupabaseDatabase
+SupabaseDatabase.prototype.getLeaderboard = async function(level: 'district' | 'state' | 'national', sport?: string, region?: string, limit = 100): Promise<LeaderboardEntry[]> {
+  try {
+    console.log('Fetching leaderboard data...');
+    
+    // Get all test attempts first
+    const { data: attemptsData, error: attemptsError } = await this.supabase
+      .from('test_attempts')
+      .select('user_id, form_score, badge, test_type');
+
+    if (attemptsError) throw attemptsError;
+    console.log('Test attempts found:', attemptsData?.length || 0);
+
+    // Get profiles (optional)
+    const { data: profilesData, error: profilesError } = await this.supabase
+      .from('profiles')
+      .select('*');
+    
+    console.log('Profiles found:', profilesData?.length || 0);
+    console.log('Sample profile data:', profilesData?.[0]);
+
+    // Create user scores map
+    const userScores = new Map<string, { bestScore: number; badge: string; profile: any }>();
+    
+    // Initialize with profiles first
+    profilesData?.forEach(profile => {
+      userScores.set(profile.id, {
+        bestScore: 0,
+        badge: 'Good',
+        profile
+      });
+    });
+    
+    // Update with test scores
+    attemptsData?.forEach(attempt => {
+      const userId = attempt.user_id;
+      const profile = profilesData?.find(p => p.id === userId);
+      
+      if (!userScores.has(userId)) {
+        userScores.set(userId, {
+          bestScore: 0,
+          badge: 'Good',
+          profile: profile || null
+        });
+      }
+      
+      if (attempt.form_score > userScores.get(userId)!.bestScore) {
+        userScores.get(userId)!.bestScore = attempt.form_score;
+        userScores.get(userId)!.badge = attempt.badge;
+      }
+    });
+
+    console.log('Users with scores:', userScores.size);
+
+    const leaderboard: LeaderboardEntry[] = [];
+    userScores.forEach((data, userId) => {
+      // Apply filters
+      if (sport && sport !== 'All' && data.profile?.sport !== sport) return;
+      if (level === 'district' && region && data.profile?.district !== region) return;
+      
+      leaderboard.push({
+        userId,
+        name: data.profile?.name || `User ${userId.slice(0, 8)}`,
+        district: data.profile?.district || 'Unknown',
+        state: data.profile?.state || 'Unknown',
+        sport: data.profile?.sport || 'Athletics',
+        score: data.bestScore,
+        badge: data.badge,
+        rank: 0
+      });
+    });
+
+    console.log('Final leaderboard entries:', leaderboard.length);
+
+    return leaderboard
+      .sort((a, b) => b.score - a.score)
+      .map((entry, index) => ({ ...entry, rank: index + 1 }))
+      .slice(0, limit);
+      
+  } catch (error) {
+    console.warn('Supabase leaderboard failed, using fallback:', error);
+    return this.fallback.getLeaderboard(level, sport, region, limit);
+  }
+};

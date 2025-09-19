@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { Apple, Plus, Target, TrendingUp, Utensils, Zap, Camera, Upload } from "lucide-react";
-import { generateAIRecommendations } from "@/lib/aiRecommendations";
+import { generateSmartRecommendations } from "@/lib/aiRecommendations";
 import APIService from "@/lib/api";
 
 function FoodImageAnalysis({ onFoodAnalyzed }) {
@@ -38,8 +38,6 @@ function FoodImageAnalysis({ onFoodAnalyzed }) {
       setAnalyzing(false);
     }
   };
-
-
 
   return (
     <div className="space-y-4">
@@ -98,7 +96,7 @@ function FoodImageAnalysis({ onFoodAnalyzed }) {
           
           <div className="space-y-3">
             <div className="space-y-2">
-              <h4 className="font-medium">AI Recommendations:</h4>
+              <h4 className="font-medium">Smart Recommendations:</h4>
               {result.recommendations.map((rec, idx) => (
                 <div key={idx} className="p-2 bg-blue-50 border border-blue-200 rounded text-sm">
                   • {rec}
@@ -169,7 +167,7 @@ const generateMealPlan = (goals: string, activityLevel: string) => {
 export default function Nutrition() {
   const [selectedGoal, setSelectedGoal] = useState("maintenance");
   const [activityLevel, setActivityLevel] = useState("moderate");
-  const [aiRecommendations, setAiRecommendations] = useState(null);
+  const [smartRecommendations, setSmartRecommendations] = useState(null);
   const [todayIntake, setTodayIntake] = useState({
     calories: 0,
     protein: 0,
@@ -193,17 +191,16 @@ export default function Nutrition() {
         if (user) {
           const attempts = await APIService.getTestHistory(user.id, 10);
           if (attempts.length > 0) {
-            const recommendations = generateAIRecommendations(attempts);
-            setAiRecommendations(recommendations);
+            const recommendations = generateSmartRecommendations(attempts);
+            setSmartRecommendations(recommendations);
           }
         }
       } catch (error) {
-        console.error('Failed to load AI recommendations:', error);
+        console.error('Failed to load smart recommendations:', error);
       }
     };
     loadRecommendations();
     
-    // Listen for test completion to update recommendations
     const handleTestCompleted = () => {
       loadRecommendations();
     };
@@ -213,22 +210,22 @@ export default function Nutrition() {
   }, []);
 
   const mealPlan = useMemo(() => {
-    if (aiRecommendations) {
+    if (smartRecommendations) {
       return {
-        name: "AI Personalized Plan",
-        calories: aiRecommendations.nutrition.calories,
-        protein: Math.round(aiRecommendations.nutrition.protein * 70),
-        carbs: Math.round(aiRecommendations.nutrition.carbs * 70),
-        fat: Math.round(aiRecommendations.nutrition.fats * 70),
-        meals: aiRecommendations.nutrition.meals.map((meal, idx) => ({
+        name: "Smart Personalized Plan",
+        calories: smartRecommendations.nutrition.calories,
+        protein: Math.round(smartRecommendations.nutrition.protein * 70),
+        carbs: Math.round(smartRecommendations.nutrition.carbs * 70),
+        fat: Math.round(smartRecommendations.nutrition.fats * 70),
+        meals: smartRecommendations.nutrition.meals.map((meal, idx) => ({
           name: ["Breakfast", "Lunch", "Snack", "Dinner", "Post-workout"][idx] || "Meal",
-          calories: Math.round(aiRecommendations.nutrition.calories / aiRecommendations.nutrition.meals.length),
+          calories: Math.round(smartRecommendations.nutrition.calories / smartRecommendations.nutrition.meals.length),
           items: [meal]
         }))
       };
     }
     return generateMealPlan(selectedGoal, activityLevel);
-  }, [aiRecommendations, selectedGoal, activityLevel]);
+  }, [smartRecommendations, selectedGoal, activityLevel]);
   
   const macroData = [
     { name: 'Protein', value: todayIntake.protein * 4, color: COLORS[0] },
@@ -236,31 +233,12 @@ export default function Nutrition() {
     { name: 'Fat', value: todayIntake.fat * 9, color: COLORS[2] }
   ];
 
-  const getProgressColor = (current: number, target: number) => {
-    const percentage = (current / target) * 100;
-    if (percentage >= 90 && percentage <= 110) return "bg-green-500";
-    if (percentage >= 80 && percentage <= 120) return "bg-yellow-500";
-    return "bg-red-500";
-  };
-
-  const calculateCalorieNeeds = () => {
-    // Simplified calculation based on activity level
-    const baseCalories = {
-      sedentary: 1800,
-      light: 2000,
-      moderate: 2200,
-      active: 2500,
-      very_active: 2800
-    };
-    return baseCalories[activityLevel as keyof typeof baseCalories] || 2200;
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Nutrition Tracking</h1>
-          <p className="text-muted-foreground">AI-powered meal planning and calorie tracking</p>
+          <p className="text-muted-foreground">Smart meal planning and calorie tracking</p>
         </div>
       </div>
 
@@ -272,7 +250,6 @@ export default function Nutrition() {
         </TabsList>
 
         <TabsContent value="tracking" className="space-y-6">
-          {/* Daily Overview */}
           <div className="grid md:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="pb-2">
@@ -334,7 +311,6 @@ export default function Nutrition() {
             </Card>
           </div>
 
-          {/* Macro Distribution Chart */}
           <Card>
             <CardHeader>
               <CardTitle>Macro Distribution</CardTitle>
@@ -379,12 +355,11 @@ export default function Nutrition() {
             </CardContent>
           </Card>
 
-          {/* Food Image Analysis */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Plus className="h-5 w-5" />
-                AI Food Analysis
+                Smart Food Analysis
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -394,7 +369,6 @@ export default function Nutrition() {
         </TabsContent>
 
         <TabsContent value="meal-plans" className="space-y-6">
-          {/* Meal Plan Selection */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -422,15 +396,15 @@ export default function Nutrition() {
                 </div>
               </div>
 
-              {aiRecommendations ? (
+              {smartRecommendations ? (
                 <div className="p-4 bg-green-50 border border-green-200 rounded">
-                  <h4 className="font-medium text-green-800 mb-3">AI Personalized Meal Plan</h4>
+                  <h4 className="font-medium text-green-800 mb-3">Smart Personalized Meal Plan</h4>
                   <div className="space-y-2">
-                    {aiRecommendations.nutrition.meals.map((meal, idx) => (
+                    {smartRecommendations.nutrition.meals.map((meal, idx) => (
                       <div key={idx} className="p-3 bg-white rounded border">
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-medium">{["Breakfast", "Lunch", "Snack", "Dinner", "Post-workout"][idx] || "Meal"}</span>
-                          <Badge variant="outline">{Math.round(aiRecommendations.nutrition.calories / aiRecommendations.nutrition.meals.length)} cal</Badge>
+                          <Badge variant="outline">{Math.round(smartRecommendations.nutrition.calories / smartRecommendations.nutrition.meals.length)} cal</Badge>
                         </div>
                         <div className="text-sm text-gray-600">{meal}</div>
                       </div>
@@ -463,7 +437,7 @@ export default function Nutrition() {
                     </Card>
                   ))}
                   <div className="text-center p-4 bg-gray-50 rounded">
-                    <div className="text-sm text-muted-foreground">Complete fitness tests for AI personalized meal plans</div>
+                    <div className="text-sm text-muted-foreground">Complete fitness tests for smart personalized meal plans</div>
                   </div>
                 </div>
               )}
@@ -472,7 +446,6 @@ export default function Nutrition() {
         </TabsContent>
 
         <TabsContent value="goals" className="space-y-6">
-          {/* Goals Settings */}
           <Card>
             <CardHeader>
               <CardTitle>Nutrition Goals</CardTitle>
@@ -527,45 +500,44 @@ export default function Nutrition() {
             </CardContent>
           </Card>
 
-          {/* AI Recommendations */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Apple className="h-5 w-5" />
-                AI Nutrition Recommendations
+                Smart Nutrition Recommendations
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {aiRecommendations ? (
+              {smartRecommendations ? (
                 <div className="grid gap-4">
                   <div className="text-center p-4 bg-muted rounded-lg">
-                    <div className="text-2xl font-bold text-green-600">{aiRecommendations.nutrition.calories}</div>
-                    <div className="text-sm text-muted-foreground">AI Recommended Calories</div>
+                    <div className="text-2xl font-bold text-green-600">{smartRecommendations.nutrition.calories}</div>
+                    <div className="text-sm text-muted-foreground">Smart Recommended Calories</div>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="text-center p-3 bg-blue-50 rounded">
-                      <div className="font-bold">{Math.round(aiRecommendations.nutrition.protein * 70)}g</div>
+                      <div className="font-bold">{Math.round(smartRecommendations.nutrition.protein * 70)}g</div>
                       <div className="text-xs">Protein</div>
                     </div>
                     <div className="text-center p-3 bg-orange-50 rounded">
-                      <div className="font-bold">{Math.round(aiRecommendations.nutrition.carbs * 70)}g</div>
+                      <div className="font-bold">{Math.round(smartRecommendations.nutrition.carbs * 70)}g</div>
                       <div className="text-xs">Carbs</div>
                     </div>
                     <div className="text-center p-3 bg-purple-50 rounded">
-                      <div className="font-bold">{Math.round(aiRecommendations.nutrition.fats * 70)}g</div>
+                      <div className="font-bold">{Math.round(smartRecommendations.nutrition.fats * 70)}g</div>
                       <div className="text-xs">Fats</div>
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-sm text-muted-foreground">Complete fitness tests to get AI nutrition recommendations</div>
+                  <div className="text-sm text-muted-foreground">Complete fitness tests to get smart nutrition recommendations</div>
                 </div>
               )}
               <div className="space-y-2">
                 <h4 className="font-medium">Personalized Meal Suggestions</h4>
-                {aiRecommendations ? (
-                  aiRecommendations.nutrition.meals.map((meal, idx) => (
+                {smartRecommendations ? (
+                  smartRecommendations.nutrition.meals.map((meal, idx) => (
                     <div key={idx} className="p-2 rounded bg-green-50 border border-green-200">
                       <div className="text-sm text-green-600">• {meal}</div>
                     </div>
@@ -579,8 +551,8 @@ export default function Nutrition() {
               <div className="space-y-2">
                 <h4 className="font-medium">Recommended Supplements</h4>
                 <div className="flex flex-wrap gap-2">
-                  {aiRecommendations ? (
-                    aiRecommendations.nutrition.supplements.map((supplement, idx) => (
+                  {smartRecommendations ? (
+                    smartRecommendations.nutrition.supplements.map((supplement, idx) => (
                       <Badge key={idx} variant="secondary">{supplement}</Badge>
                     ))
                   ) : (

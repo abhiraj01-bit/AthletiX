@@ -1,9 +1,9 @@
-# AthletiX - AI-Powered Athletic Performance Platform
+# AthletiX - Advanced Athletic Performance Platform
 
 ## Features Implemented
 
-### ✅ Test Analysis with Google Gemini AI
-- **Video Analysis**: Upload or record videos for AI-powered form analysis
+### ✅ Advanced Biomechanics Analysis
+- **Video Analysis**: Upload or record videos for intelligent form analysis
 - **9 Test Types**: Vertical jump, sit-ups, push-ups, pull-ups, shuttle run, endurance run, flexibility, agility ladder, height/weight
 - **Real-time Feedback**: Form scoring, technique analysis, and personalized recommendations
 - **EMG Integration**: Muscle activity monitoring during tests
@@ -40,7 +40,7 @@ pnpm run
 ## API Endpoints
 
 ### Test Analysis
-- `POST /api/tests/analyze` - Analyze video with Gemini AI
+- `POST /api/tests/analyze` - Analyze video with advanced algorithms
 - `GET /api/tests/history/:userId` - Get user's test history
 - `GET /api/tests/stats/:userId` - Get user statistics
 
@@ -84,7 +84,7 @@ export const db: DatabaseAdapter = new PostgreSQLDatabase();
 
 - **Frontend**: React, TypeScript, Tailwind CSS
 - **Backend**: Node.js, Express, TypeScript
-- **AI**: Google Gemini API
+- **Analytics**: Advanced ML Processing
 - **Database**: Database-agnostic (currently in-memory)
 - **Hardware**: ESP32, EMG sensors
 - **Deployment**: Netlify, Vercel compatible

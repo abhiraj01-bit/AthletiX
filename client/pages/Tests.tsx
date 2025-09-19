@@ -100,7 +100,7 @@ function ReadinessScore() {
       <CardContent>
         <Progress value={readiness} />
         <div className="mt-2 text-xs text-muted-foreground">
-          {readiness > 0 ? `AI estimates ${readiness}% readiness based on recent tests` : "Complete tests to see readiness score"}
+          {readiness > 0 ? `System calculates ${readiness}% readiness based on recent performance` : "Complete tests to see readiness score"}
         </div>
       </CardContent>
     </Card>
@@ -217,7 +217,7 @@ export default function Tests() {
             <CardContent className="flex items-center justify-center py-8">
               <div className="text-center">
                 <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                <div className="text-sm text-muted-foreground">Analyzing video with AI...</div>
+                <div className="text-sm text-muted-foreground">Processing biomechanics analysis...</div>
               </div>
             </CardContent>
           </Card>
@@ -233,7 +233,7 @@ export default function Tests() {
         {!testAnalysis.analyzing && !testAnalysis.result && (
           <Card>
             <CardContent className="text-center py-8 text-muted-foreground">
-              Record or upload a video and click "Analyze" to get AI-powered feedback
+              Record or upload a video and click "Analyze" to get advanced performance insights
             </CardContent>
           </Card>
         )}

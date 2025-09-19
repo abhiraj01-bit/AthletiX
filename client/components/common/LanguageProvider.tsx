@@ -32,7 +32,7 @@ const dictionary: Dictionary = {
   upload: { en: "Upload", hi: "अप��ोड", bn: "আপলোড" },
   record: { en: "Record", hi: "रिकॉर्ड", bn: "রেকর্ড" },
   results: { en: "Results", hi: "परिणाम", bn: "ফলাফল" },
-  analysis: { en: "AI Analysis", hi: "एआई विश्लेषण", bn: "এআই বিশ্লেষণ" },
+  analysis: { en: "Performance Analysis", hi: "प्रदर्शन विश्लेषण", bn: "পারফরম্যান্স বিশ্লেষণ" },
 };
 
 const I18nContext = createContext<{

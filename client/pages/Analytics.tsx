@@ -167,7 +167,7 @@ export default function Analytics() {
           date: new Date(a.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
           value: Number(metrics[meta.field] ?? 0),
           formScore: a.formScore || 0,
-          aiAnalysis: a.analysisResult
+          performanceAnalysis: a.analysisResult
         };
       })
       .filter((d) => !Number.isNaN(d.value) && d.value > 0)
@@ -186,8 +186,8 @@ export default function Analytics() {
   const trendSlope = linearSlope(series.map((p, i) => [i, p.value]));
   const projection = Math.round(last + trendSlope * 8);
   
-  // AI Analysis insights
-  const aiInsights = useMemo(() => {
+  // Performance Analysis insights
+  const performanceInsights = useMemo(() => {
     const recentAttempts = sortedAttempts.filter(a => a.testType === active).slice(0, 5);
     const recommendations = new Set<string>();
     const commonIssues = new Set<string>();
@@ -255,14 +255,14 @@ export default function Analytics() {
                 <Stat title="Personal Best" value={`${best} ${meta.unit}`} />
                 <Stat title="Last Attempt" value={`${last} ${meta.unit}`} />
                 <Stat title="Avg Form Score" value={`${avgFormScore || 0}/100`} />
-                <Stat title="AI Trend" value={aiInsights.improvementTrend} />
+                <Stat title="Performance Trend" value={performanceInsights.improvementTrend} />
               </>
             ) : (
               <>
                 <Stat title="Personal Best" value="No data" />
                 <Stat title="Last Attempt" value="No data" />
                 <Stat title="Avg Form Score" value="No data" />
-                <Stat title="AI Trend" value="No data" />
+                <Stat title="Performance Trend" value="No data" />
               </>
             )}
             <div className="md:col-span-4">
@@ -295,7 +295,7 @@ export default function Analytics() {
         {series.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>AI Form Analysis</CardTitle>
+              <CardTitle>Form Analysis</CardTitle>
             </CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-6">
               <div>
@@ -403,29 +403,29 @@ export default function Analytics() {
 
         <Card>
           <CardHeader>
-            <CardTitle>AI Analysis Insights</CardTitle>
+            <CardTitle>Performance Insights</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {loading ? (
-              <div className="text-sm text-muted-foreground">Loading AI insights...</div>
+              <div className="text-sm text-muted-foreground">Loading performance insights...</div>
             ) : (
               <>
-                {aiInsights.recommendations.length > 0 && (
+                {performanceInsights.recommendations.length > 0 && (
                   <div>
-                    <div className="text-sm font-medium mb-2">AI Recommendations:</div>
+                    <div className="text-sm font-medium mb-2">Expert Recommendations:</div>
                     <div className="space-y-2">
-                      {aiInsights.recommendations.map((rec, idx) => (
+                      {performanceInsights.recommendations.map((rec, idx) => (
                         <Suggestion key={idx} text={rec} type="recommendation" />
                       ))}
                     </div>
                   </div>
                 )}
                 
-                {aiInsights.issues.length > 0 && (
+                {performanceInsights.issues.length > 0 && (
                   <div>
                     <div className="text-sm font-medium mb-2">Common Issues:</div>
                     <div className="space-y-2">
-                      {aiInsights.issues.map((issue, idx) => (
+                      {performanceInsights.issues.map((issue, idx) => (
                         <Suggestion key={idx} text={issue} type="warning" />
                       ))}
                     </div>
@@ -434,18 +434,18 @@ export default function Analytics() {
                 
                 <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
                   <div className="text-sm font-medium text-blue-800">
-                    Performance Trend: {aiInsights.improvementTrend}
+                    Performance Trend: {performanceInsights.improvementTrend}
                   </div>
                   <div className="text-xs text-blue-600 mt-1">
-                    {aiInsights.improvementTrend === 'improving' && 'Keep up the great work! Your form is getting better.'}
-                    {aiInsights.improvementTrend === 'declining' && 'Focus on technique over speed. Consider rest or form practice.'}
-                    {aiInsights.improvementTrend === 'stable' && 'Consistent performance. Try varying intensity to improve.'}
+                    {performanceInsights.improvementTrend === 'improving' && 'Keep up the great work! Your form is getting better.'}
+                    {performanceInsights.improvementTrend === 'declining' && 'Focus on technique over speed. Consider rest or form practice.'}
+                    {performanceInsights.improvementTrend === 'stable' && 'Consistent performance. Try varying intensity to improve.'}
                   </div>
                 </div>
                 
-                {aiInsights.recommendations.length === 0 && aiInsights.issues.length === 0 && (
+                {performanceInsights.recommendations.length === 0 && performanceInsights.issues.length === 0 && (
                   <div className="text-sm text-muted-foreground">
-                    Complete more AI-analyzed tests to get personalized insights.
+                    Complete more performance tests to get personalized insights.
                   </div>
                 )}
               </>

@@ -8,11 +8,11 @@ import { Link } from "react-router-dom";
 export const FeatureCards: React.FC = () => {
   const features = [
     {
-      title: "AI Training Plans",
+      title: "Smart Training Plans",
       description: "Personalized workouts based on your performance data",
       icon: <Dumbbell className="h-6 w-6 text-blue-500" />,
       link: "/training",
-      badge: "AI Powered",
+      badge: "Intelligent",
       stats: "4-5 workouts/week"
     },
     {

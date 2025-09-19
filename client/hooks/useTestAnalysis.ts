@@ -1,12 +1,12 @@
 // Test Analysis Hook
 import { useState, useCallback } from 'react';
-import { TestType, AIAnalysis } from '@/lib/types';
+import { TestType, PerformanceAnalysis } from '@/lib/types';
 import APIService from '@/lib/api';
 import { saveAttempt } from '@/lib/storage';
 
 export function useTestAnalysis() {
   const [analyzing, setAnalyzing] = useState(false);
-  const [result, setResult] = useState<AIAnalysis | null>(null);
+  const [result, setResult] = useState<PerformanceAnalysis | null>(null);
 
   const analyzeVideo = useCallback(async (
     videoBlob: Blob, 
@@ -52,9 +52,9 @@ export function useTestAnalysis() {
       if (error.message.includes('Video too large')) {
         throw new Error('Video file is too large. Please record a shorter video (max 20MB).');
       } else if (error.message.includes('API key')) {
-        throw new Error('AI service not configured properly. Please contact support.');
+        throw new Error('Analysis service not configured properly. Please contact support.');
       } else {
-        throw new Error('AI analysis failed. Please try again with a different video.');
+        throw new Error('Performance analysis failed. Please try again with a different video.');
       }
     }
   }, []);

@@ -2,11 +2,11 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { AIAnalysis } from '@/lib/types';
+import { PerformanceAnalysis } from '@/lib/types';
 import { BADGE_COLORS } from '@/lib/constants';
 
 interface AnalysisResultsProps {
-  analysis: AIAnalysis;
+  analysis: PerformanceAnalysis;
   emgData?: {
     muscleActivity: number;
     fatigue: number;
@@ -19,11 +19,11 @@ export function AnalysisResults({ analysis, emgData }: AnalysisResultsProps) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span>AI Analysis Results</span>
-          {analysis.isRealAI ? (
-            <Badge variant="default">Real AI</Badge>
+          <span>Performance Analysis</span>
+          {analysis.isAdvanced ? (
+            <Badge variant="default">Advanced Analytics</Badge>
           ) : (
-            <Badge variant="secondary">Fallback</Badge>
+            <Badge variant="secondary">Basic Analysis</Badge>
           )}
         </CardTitle>
       </CardHeader>
@@ -53,10 +53,10 @@ export function AnalysisResults({ analysis, emgData }: AnalysisResultsProps) {
           </div>
         </div>
         
-        {/* AI Recommendations */}
+        {/* Expert Recommendations */}
         {analysis.recommendations && analysis.recommendations.length > 0 && (
           <div>
-            <div className="text-sm font-medium mb-2">AI Recommendations:</div>
+            <div className="text-sm font-medium mb-2">Expert Recommendations:</div>
             <ul className="space-y-2">
               {analysis.recommendations.map((rec: string, idx: number) => (
                 <li key={idx} className="flex items-start gap-2 text-sm">

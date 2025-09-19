@@ -141,7 +141,7 @@ export function TestCard({
               Analyzing...
             </>
           ) : (
-            <><Play className="h-4 w-4" /> Analyze with AI</>
+            <><Play className="h-4 w-4" /> Analyze Performance</>
           )}
         </Button>
       </CardContent>

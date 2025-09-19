@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Area, AreaChart, XAxis, YAxis } from "recharts";
 import { AlertTriangle, Shield, Activity, TrendingUp, Eye } from "lucide-react";
-import { generateAIRecommendations } from "@/lib/aiRecommendations";
+import { generateSmartRecommendations } from "@/lib/aiRecommendations";
 import APIService from "@/lib/api";
 
 const analyzeInjuryRisk = (attempts: any[], emgData: any[]) => {
@@ -75,7 +75,7 @@ const generateMovementAnalysis = () => {
 
 export default function InjuryPrevention() {
   const [selectedRisk, setSelectedRisk] = useState<string | null>(null);
-  const [aiRecommendations, setAiRecommendations] = useState(null);
+  const [smartRecommendations, setSmartRecommendations] = useState(null);
 
   useEffect(() => {
     const loadRecommendations = async () => {
@@ -84,12 +84,12 @@ export default function InjuryPrevention() {
         if (user) {
           const attempts = await APIService.getTestHistory(user.id, 10);
           if (attempts.length > 0) {
-            const recommendations = generateAIRecommendations(attempts);
-            setAiRecommendations(recommendations);
+            const recommendations = generateSmartRecommendations(attempts);
+            setSmartRecommendations(recommendations);
           }
         }
       } catch (error) {
-        console.error('Failed to load AI recommendations:', error);
+        console.error('Failed to load smart recommendations:', error);
       }
     };
     loadRecommendations();
@@ -103,14 +103,15 @@ export default function InjuryPrevention() {
   }, []);
   
   const injuryRisks = useMemo(() => {
-    if (!aiRecommendations) return [];
-    return aiRecommendations.safety.injuries.map(injury => ({
+    if (!smartRecommendations) return [];
+    return smartRecommendations.safety.injuries.map(injury => ({
       type: injury,
       severity: "Medium",
       description: `Risk identified from performance analysis`,
-      recommendation: aiRecommendations.safety.prevention[0] || "Follow safety guidelines"
+      recommendation: smartRecommendations.safety.prevention[0] || "Follow safety guidelines"
     }));
-  }, [aiRecommendations]);
+  }, [smartRecommendations]);
+  
   const [movementAnalysis, setMovementAnalysis] = useState(null);
   
   useEffect(() => {
@@ -146,7 +147,7 @@ export default function InjuryPrevention() {
       }
     };
     generateRealMovementAnalysis();
-  }, [aiRecommendations]);
+  }, [smartRecommendations]);
   
   const [riskTrendData, setRiskTrendData] = useState([]);
   
@@ -167,7 +168,7 @@ export default function InjuryPrevention() {
       }
     };
     loadRiskTrend();
-  }, [aiRecommendations]);
+  }, [smartRecommendations]);
 
   const getRiskColor = (severity: string) => {
     switch (severity) {
@@ -189,7 +190,7 @@ export default function InjuryPrevention() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Injury Prevention</h1>
-          <p className="text-muted-foreground">AI-powered movement analysis and risk assessment</p>
+          <p className="text-muted-foreground">Advanced movement analysis and risk assessment</p>
         </div>
       </div>
 
@@ -260,11 +261,11 @@ export default function InjuryPrevention() {
         </Card>
       </div>
 
-      {/* AI Safety Recommendations */}
+      {/* Smart Safety Recommendations */}
       <div className="space-y-4">
         <h2 className="text-xl font-semibold flex items-center gap-2">
           <Shield className="h-5 w-5 text-green-500" />
-          AI Safety Analysis
+          Smart Safety Analysis
         </h2>
         
         <div className="grid lg:grid-cols-2 gap-6">
@@ -276,8 +277,8 @@ export default function InjuryPrevention() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {aiRecommendations ? (
-                aiRecommendations.safety.injuries.map((injury, idx) => (
+              {smartRecommendations ? (
+                smartRecommendations.safety.injuries.map((injury, idx) => (
                   <div key={idx} className="p-3 rounded bg-red-50 border border-red-200">
                     <div className="font-medium text-red-800">{injury}</div>
                   </div>
@@ -288,7 +289,7 @@ export default function InjuryPrevention() {
                 </div>
               )}
               
-              {aiRecommendations?.safety.warnings.map((warning, idx) => (
+              {smartRecommendations?.safety.warnings.map((warning, idx) => (
                 <div key={idx} className="p-3 rounded bg-yellow-50 border border-yellow-200">
                   <div className="font-medium text-yellow-800">{warning}</div>
                 </div>
@@ -304,8 +305,8 @@ export default function InjuryPrevention() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {aiRecommendations ? (
-                aiRecommendations.safety.prevention.map((tip, idx) => (
+              {smartRecommendations ? (
+                smartRecommendations.safety.prevention.map((tip, idx) => (
                   <div key={idx} className="flex items-center gap-2 p-2 rounded border">
                     <div className="h-2 w-2 rounded-full bg-green-500" />
                     <span className="text-sm">{tip}</span>
@@ -326,8 +327,8 @@ export default function InjuryPrevention() {
             <CardTitle>Recovery Recommendations</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {aiRecommendations ? (
-              aiRecommendations.safety.recovery.map((recovery, idx) => (
+            {smartRecommendations ? (
+              smartRecommendations.safety.recovery.map((recovery, idx) => (
                 <div key={idx} className="flex items-center gap-2 p-2 rounded border">
                   <div className="h-2 w-2 rounded-full bg-blue-500" />
                   <span className="text-sm">{recovery}</span>

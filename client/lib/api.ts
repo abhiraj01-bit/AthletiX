@@ -68,6 +68,19 @@ export class APIService {
     return data.stats;
   }
 
+  // Leaderboard
+  static async getLeaderboard(level: 'district' | 'state' | 'national', sport?: string, region?: string, limit = 100) {
+    const params = new URLSearchParams({ level, limit: limit.toString() });
+    if (sport && sport !== 'All') params.append('sport', sport);
+    if (region) params.append('region', region);
+    
+    const response = await fetch(`/api/leaderboard?${params}`);
+    if (!response.ok) throw new Error('Failed to fetch leaderboard');
+    
+    const data = await response.json();
+    return data.leaderboard || [];
+  }
+
   // Profile Management
   static async getProfile(userId: string): Promise<UserProfile | null> {
     const response = await fetch(`/api/profile/${userId}`);
@@ -88,6 +101,27 @@ export class APIService {
     
     const data = await response.json();
     return data.profile;
+  }
+
+  // Training Plans
+  static async getTrainingPlans(userId: string) {
+    const response = await fetch(`/api/training-plans/${userId}`);
+    if (!response.ok) throw new Error('Failed to fetch training plans');
+    
+    const data = await response.json();
+    return data;
+  }
+
+  static async saveTrainingPlan(userId: string, planId: string, customExercises?: any[]) {
+    const response = await fetch(`/api/training-plans/${userId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ planId, customExercises })
+    });
+
+    if (!response.ok) throw new Error('Failed to save training plan');
+    
+    return response.json();
   }
 }
 

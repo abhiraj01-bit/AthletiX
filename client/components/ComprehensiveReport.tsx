@@ -54,7 +54,7 @@ export function ComprehensiveReport() {
   }, []);
   
   const generateReport = (): ReportData => {
-    // Filter only real AI-analyzed tests from database
+    // Filter only advanced-analyzed tests from database
     const realTests = attempts.filter(attempt => 
       attempt.formScore && 
       attempt.formScore > 0 && 
@@ -171,7 +171,7 @@ export function ComprehensiveReport() {
       }
       
       pdf.setFontSize(14);
-      pdf.text('AI Recommendations', 20, yPosition);
+      pdf.text('Expert Recommendations', 20, yPosition);
       yPosition += 10;
       
       pdf.setFontSize(10);
@@ -215,8 +215,8 @@ export function ComprehensiveReport() {
     return (
       <Card>
         <CardContent className="text-center py-8">
-          <p className="text-muted-foreground">No AI-analyzed test data available. Complete some tests with AI analysis to generate your comprehensive report.</p>
-          <p className="text-sm text-muted-foreground mt-2">Go to Tests page and record videos for AI analysis.</p>
+          <p className="text-muted-foreground">No advanced test data available. Complete some tests with performance analysis to generate your comprehensive report.</p>
+          <p className="text-sm text-muted-foreground mt-2">Go to Tests page and record videos for performance analysis.</p>
         </CardContent>
       </Card>
     );
@@ -317,7 +317,7 @@ export function ComprehensiveReport() {
       {report.overallRecommendations.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>AI Recommendations Summary</CardTitle>
+            <CardTitle>Expert Recommendations Summary</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2">

@@ -12,7 +12,7 @@ export interface VideoAnalysisResult {
 
 export class GeminiAnalysisService {
   private genAI: GoogleGenerativeAI;
-  private model: any;
+  public model: any; // Make public for training plans
 
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY;

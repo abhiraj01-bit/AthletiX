@@ -15,7 +15,7 @@ export interface TestAttempt {
   userId: string;
   testType: TestType;
   videoUrl?: string;
-  analysisResult: AIAnalysis;
+  analysisResult: PerformanceAnalysis;
   metrics: Record<string, number>;
   formScore: number;
   badge: BadgeLevel;
@@ -23,14 +23,14 @@ export interface TestAttempt {
   createdAt: string;
 }
 
-export interface AIAnalysis {
+export interface PerformanceAnalysis {
   testType: TestType;
   metrics: Record<string, number>;
   formScore: number;
   recommendations: string[];
   badge: BadgeLevel;
   errors: string[];
-  isRealAI: boolean;
+  isAdvanced: boolean;
 }
 
 export type BadgeLevel = "Good" | "District Elite" | "State Level" | "National Standard";

@@ -1,6 +1,6 @@
 import { TestAttempt } from './types';
 
-export interface AIRecommendations {
+export interface SmartRecommendations {
   nutrition: {
     calories: number;
     protein: number;
@@ -24,7 +24,7 @@ export interface AIRecommendations {
   };
 }
 
-export function generateAIRecommendations(attempts: TestAttempt[]): AIRecommendations {
+export function generateSmartRecommendations(attempts: TestAttempt[]): SmartRecommendations {
   if (!attempts.length) return getDefaultRecommendations();
 
   const latest = attempts[0];
@@ -234,7 +234,7 @@ function getStrongAreas(attempts: TestAttempt[]): string[] {
   return areas;
 }
 
-function getDefaultRecommendations(): AIRecommendations {
+function getDefaultRecommendations(): SmartRecommendations {
   return {
     nutrition: {
       calories: 2200,

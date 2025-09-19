@@ -36,6 +36,15 @@ export function createServer() {
   app.get("/api/profile/:userId", getProfile);
   app.post("/api/profile/:userId", saveProfile);
   console.log('Profile routes registered');
+  
+  // Food analysis routes
+  app.post("/api/food/analyze", async (req, res) => {
+    const { analyzeFoodImage, uploadFoodImage } = await import("./routes/food.js");
+    uploadFoodImage(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message });
+      analyzeFoodImage(req, res);
+    });
+  });
 
   return app;
 }

@@ -1,7 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-
 export interface VideoAnalysisResult {
   testType: string;
   metrics: Record<string, number>;
@@ -13,7 +11,22 @@ export interface VideoAnalysisResult {
 }
 
 export class GeminiAnalysisService {
-  private model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  private genAI: GoogleGenerativeAI;
+  private model: any;
+
+  constructor() {
+    const apiKey = process.env.GEMINI_API_KEY;
+    console.log('Initializing Gemini service with API key:', apiKey ? `${apiKey.substring(0, 10)}...` : 'UNDEFINED');
+    
+    if (!apiKey) {
+      console.warn('GEMINI_API_KEY not found, will use fallback analysis');
+      this.genAI = new GoogleGenerativeAI('');
+      this.model = null;
+    } else {
+      this.genAI = new GoogleGenerativeAI(apiKey);
+      this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    }
+  }
 
   async analyzeVideo(videoBuffer: Buffer, testType: string): Promise<VideoAnalysisResult> {
     console.log(`=== GEMINI AI ANALYSIS START ===`);
@@ -21,10 +34,20 @@ export class GeminiAnalysisService {
     console.log(`Video buffer size: ${videoBuffer.length} bytes`);
     console.log(`API Key available: ${!!process.env.GEMINI_API_KEY}`);
     
+    // Force real AI - throw error if no API key
+    if (!this.model || !process.env.GEMINI_API_KEY) {
+      throw new Error('Gemini API key not configured. Real AI analysis requires valid API key.');
+    }
+    
     try {
       const prompt = this.getAnalysisPrompt(testType);
       const mimeType = this.detectMimeType(videoBuffer);
       console.log(`MIME type: ${mimeType}`);
+      
+      // Limit video size for Gemini (max 20MB)
+      if (videoBuffer.length > 20 * 1024 * 1024) {
+        throw new Error(`Video too large: ${(videoBuffer.length / 1024 / 1024).toFixed(1)}MB. Maximum 20MB allowed.`);
+      }
       
       console.log('Calling Gemini API...');
       const result = await this.model.generateContent([
@@ -49,12 +72,15 @@ export class GeminiAnalysisService {
       return analysis;
     } catch (error) {
       console.error('=== GEMINI FAILED ===');
-      console.error('Error details:', error);
-      console.log('Using fallback mock data');
+      console.error('Error type:', error.constructor.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      if (error.response) {
+        console.error('API Response:', error.response);
+      }
       
-      const fallback = this.getFallbackAnalysis(testType);
-      fallback.isRealAI = false; // Mark as mock
-      return fallback;
+      // Don't use fallback - throw the error to force real AI
+      throw new Error(`Gemini AI analysis failed: ${error.message}`);
     }
   }
 
@@ -71,71 +97,78 @@ export class GeminiAnalysisService {
   }
 
   private getAnalysisPrompt(testType: string): string {
-    const basePrompt = `Analyze this ${testType} exercise video and provide detailed feedback. Focus on:`;
-    
     const prompts = {
-      verticalJump: `${basePrompt}
-        - Jump height measurement
-        - Takeoff technique and form
-        - Landing mechanics
-        - Body alignment during jump
-        Return JSON: {"jumpHeight": number, "formScore": 0-100, "technique": "analysis", "recommendations": ["tip1", "tip2"], "errors": []}`,
+      verticalJump: `You are an expert fitness trainer analyzing a vertical jump video. Watch carefully and measure:
+        1. EXACT jump height in centimeters by tracking the person's highest point
+        2. Takeoff form (0-100): knee bend, arm swing, body position
+        3. Landing technique (0-100): balance, knee absorption
+        
+        Count frame by frame if needed. Be precise with measurements.
+        Return ONLY valid JSON: {"jumpHeight": <exact_cm>, "formScore": <0-100>, "recommendations": ["specific tip 1", "specific tip 2"], "errors": []}`,
       
-      sitUps: `${basePrompt}
-        - Count accurate repetitions
-        - Form quality (full range of motion)
-        - Pace and rhythm
-        - Core engagement
-        Return JSON: {"reps": number, "formScore": 0-100, "pace": "analysis", "recommendations": ["tip1", "tip2"], "errors": []}`,
+      sitUps: `You are an expert fitness trainer counting sit-ups. Watch the ENTIRE video carefully:
+        1. COUNT EVERY VALID REP: Full range from lying down to sitting up, elbows to knees
+        2. REJECT invalid reps: partial range, improper form, not touching knees
+        3. Rate form quality (0-100) based on technique consistency
+        
+        Count slowly and accurately. Each rep must be complete.
+        Return ONLY valid JSON: {"reps": <exact_count>, "formScore": <0-100>, "recommendations": ["specific form tip 1", "specific form tip 2"], "errors": []}`,
       
-      pushUps: `${basePrompt}
-        - Count valid repetitions
-        - Body alignment and form
-        - Range of motion
-        - Muscle engagement
-        Return JSON: {"reps": number, "formScore": 0-100, "alignment": "analysis", "recommendations": ["tip1", "tip2"], "errors": []}`,
+      pushUps: `You are an expert fitness trainer counting push-ups. Analyze the COMPLETE video:
+        1. COUNT VALID REPS ONLY: Chest must nearly touch ground, full arm extension up
+        2. REJECT partial reps: not going down enough, not pushing up fully
+        3. Check body alignment: straight line from head to heels
+        
+        Be strict with counting. Quality over quantity.
+        Return ONLY valid JSON: {"reps": <exact_count>, "formScore": <0-100>, "recommendations": ["specific technique tip 1", "specific technique tip 2"], "errors": []}`,
       
-      pullUps: `${basePrompt}
-        - Count complete repetitions
-        - Grip and hang position
-        - Pull technique
-        - Control during descent
-        Return JSON: {"reps": number, "formScore": 0-100, "technique": "analysis", "recommendations": ["tip1", "tip2"], "errors": []}`,
+      pullUps: `You are an expert fitness trainer counting pull-ups. Watch every movement:
+        1. COUNT COMPLETE REPS: Chin must clear the bar, full arm extension down
+        2. REJECT incomplete reps: not reaching chin over bar, not fully extending
+        3. Rate grip and control technique
+        
+        Count precisely. Each rep must be full range of motion.
+        Return ONLY valid JSON: {"reps": <exact_count>, "formScore": <0-100>, "recommendations": ["specific pull-up tip 1", "specific pull-up tip 2"], "errors": []}`,
       
-      shuttleRun: `${basePrompt}
-        - Speed and agility
-        - Direction change technique
-        - Footwork patterns
-        - Overall time estimation
-        Return JSON: {"laps": number, "time": number, "agility": 0-100, "recommendations": ["tip1", "tip2"], "errors": []}`,
+      shuttleRun: `You are a track coach timing shuttle runs. Analyze the complete performance:
+        1. COUNT exact number of laps/shuttles completed
+        2. ESTIMATE total time in seconds by watching start to finish
+        3. Rate agility and direction changes
+        
+        Time accurately from start to complete stop.
+        Return ONLY valid JSON: {"laps": <exact_count>, "time": <seconds>, "agility": <0-100>, "recommendations": ["speed tip 1", "agility tip 2"], "errors": []}`,
       
-      flexibilityTest: `${basePrompt}
-        - Range of motion measurement
-        - Form and technique
-        - Flexibility assessment
-        - Areas for improvement
-        Return JSON: {"reach": number, "flexibility": 0-100, "assessment": "analysis", "recommendations": ["tip1", "tip2"], "errors": []}`,
+      flexibilityTest: `You are a flexibility expert measuring reach distance:
+        1. MEASURE maximum reach in centimeters from starting position
+        2. Rate flexibility level based on range of motion
+        3. Assess form and technique
+        
+        Measure precisely using visual reference points.
+        Return ONLY valid JSON: {"reach": <cm_distance>, "flexibility": <0-100>, "recommendations": ["flexibility tip 1", "stretch tip 2"], "errors": []}`,
       
-      agilityLadder: `${basePrompt}
-        - Footwork speed and accuracy
-        - Coordination and rhythm
-        - Time estimation
-        - Technique quality
-        Return JSON: {"time": number, "footwork": 0-100, "coordination": "analysis", "recommendations": ["tip1", "tip2"], "errors": []}`,
+      agilityLadder: `You are an agility coach timing ladder drills:
+        1. TIME the complete drill from start to finish in seconds
+        2. COUNT foot faults or mistakes
+        3. Rate footwork speed and accuracy
+        
+        Time precisely and note any errors.
+        Return ONLY valid JSON: {"time": <seconds>, "footwork": <0-100>, "recommendations": ["footwork tip 1", "speed tip 2"], "errors": []}`,
       
-      enduranceRun: `${basePrompt}
-        - Running pace and consistency
-        - Breathing technique
-        - Form and posture
-        - Distance covered estimation
-        Return JSON: {"distance": number, "pace": number, "endurance": 0-100, "recommendations": ["tip1", "tip2"], "errors": []}`,
+      enduranceRun: `You are a running coach analyzing endurance performance:
+        1. ESTIMATE distance covered by counting laps or tracking movement
+        2. CALCULATE average pace in minutes per kilometer
+        3. Rate running form and consistency
+        
+        Analyze the complete running session.
+        Return ONLY valid JSON: {"distance": <km>, "pace": <min_per_km>, "endurance": <0-100>, "recommendations": ["running tip 1", "endurance tip 2"], "errors": []}`,
       
-      heightWeight: `${basePrompt}
-        - Body measurements
-        - Posture assessment
-        - Overall fitness indicators
-        - Health recommendations
-        Return JSON: {"height": number, "weight": number, "bmi": number, "recommendations": ["tip1", "tip2"], "errors": []}`
+      heightWeight: `You are a health professional taking measurements:
+        1. ESTIMATE height in centimeters from visual reference
+        2. ESTIMATE weight in kilograms from body composition
+        3. CALCULATE BMI from height and weight
+        
+        Make reasonable estimates based on visual assessment.
+        Return ONLY valid JSON: {"height": <cm>, "weight": <kg>, "bmi": <calculated>, "recommendations": ["health tip 1", "fitness tip 2"], "errors": []}`
     };
 
     return prompts[testType as keyof typeof prompts] || prompts.sitUps;
@@ -151,14 +184,14 @@ export class GeminiAnalysisService {
       return {
         testType,
         metrics: this.extractMetrics(parsed, testType),
-        formScore: parsed.formScore || 75,
-        recommendations: parsed.recommendations || ['Keep practicing!'],
+        formScore: parsed.formScore || 0,
+        recommendations: parsed.recommendations || [],
         badge: this.calculateBadge(parsed, testType),
         errors: []
       };
     } catch (error) {
       console.error('Parse error:', error);
-      return this.getFallbackAnalysis(testType);
+      throw new Error(`Failed to parse AI response: ${error.message}`);
     }
   }
 
@@ -167,33 +200,33 @@ export class GeminiAnalysisService {
     
     switch (testType) {
       case 'verticalJump':
-        metrics.jumpHeightCm = parsed.jumpHeight || 45;
+        metrics.jumpHeightCm = parsed.jumpHeight || 0;
         break;
       case 'sitUps':
       case 'pushUps':
       case 'pullUps':
-        metrics.reps = parsed.reps || 20;
+        metrics.reps = parsed.reps || 0;
         break;
       case 'shuttleRun':
-        metrics.laps = parsed.laps || 10;
-        metrics.timeSec = parsed.time || 60;
+        metrics.laps = parsed.laps || 0;
+        metrics.timeSec = parsed.time || 0;
         break;
       case 'flexibilityTest':
-        metrics.reachCm = parsed.reach || 25;
-        metrics.flexibilityScore = parsed.flexibility || 70;
+        metrics.reachCm = parsed.reach || 0;
+        metrics.flexibilityScore = parsed.flexibility || 0;
         break;
       case 'agilityLadder':
-        metrics.completionTime = parsed.time || 8;
-        metrics.footworkScore = parsed.footwork || 80;
+        metrics.completionTime = parsed.time || 0;
+        metrics.footworkScore = parsed.footwork || 0;
         break;
       case 'enduranceRun':
-        metrics.distanceKm = parsed.distance || 3;
-        metrics.pace = parsed.pace || 6;
+        metrics.distanceKm = parsed.distance || 0;
+        metrics.pace = parsed.pace || 0;
         break;
       case 'heightWeight':
-        metrics.heightCm = parsed.height || 170;
-        metrics.weightKg = parsed.weight || 65;
-        metrics.bmi = parsed.bmi || 22.5;
+        metrics.heightCm = parsed.height || 0;
+        metrics.weightKg = parsed.weight || 0;
+        metrics.bmi = parsed.bmi || 0;
         break;
     }
     
@@ -201,53 +234,15 @@ export class GeminiAnalysisService {
   }
 
   private calculateBadge(parsed: any, testType: string): string {
-    const score = parsed.formScore || 75;
+    const score = parsed.formScore || 0;
     if (score >= 90) return 'National Standard';
     if (score >= 80) return 'State Level';
     if (score >= 70) return 'District Elite';
-    return 'Good';
+    if (score >= 50) return 'Good';
+    return 'Needs Improvement';
   }
 
-  private getFallbackAnalysis(testType: string): VideoAnalysisResult {
-    const mockMetrics = this.generateMockMetrics(testType);
-    const formScore = 70 + Math.random() * 25;
-    
-    return {
-      testType,
-      metrics: mockMetrics,
-      formScore: Math.round(formScore),
-      recommendations: [
-        'Focus on maintaining proper form throughout the movement',
-        'Keep your core engaged during the exercise',
-        'Control the tempo - avoid rushing through repetitions'
-      ],
-      badge: this.calculateBadge({ formScore }, testType),
-      errors: []
-    };
-  }
 
-  private generateMockMetrics(testType: string): Record<string, number> {
-    switch (testType) {
-      case 'verticalJump':
-        return { jumpHeightCm: 40 + Math.random() * 25 };
-      case 'sitUps':
-      case 'pushUps':
-      case 'pullUps':
-        return { reps: 15 + Math.random() * 20 };
-      case 'shuttleRun':
-        return { laps: 8 + Math.random() * 8, timeSec: 50 + Math.random() * 30 };
-      case 'flexibilityTest':
-        return { reachCm: 20 + Math.random() * 20, flexibilityScore: 60 + Math.random() * 30 };
-      case 'agilityLadder':
-        return { completionTime: 6 + Math.random() * 4, footworkScore: 70 + Math.random() * 25 };
-      case 'enduranceRun':
-        return { distanceKm: 2 + Math.random() * 3, pace: 5 + Math.random() * 2 };
-      case 'heightWeight':
-        return { heightCm: 160 + Math.random() * 25, weightKg: 55 + Math.random() * 25, bmi: 20 + Math.random() * 5 };
-      default:
-        return { value: 50 + Math.random() * 30 };
-    }
-  }
 }
 
 export const geminiService = new GeminiAnalysisService();

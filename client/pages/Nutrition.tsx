@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,112 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
-import { Apple, Plus, Target, TrendingUp, Utensils, Zap } from "lucide-react";
+import { Apple, Plus, Target, TrendingUp, Utensils, Zap, Camera, Upload } from "lucide-react";
+import { generateAIRecommendations } from "@/lib/aiRecommendations";
+import APIService from "@/lib/api";
+
+function FoodImageAnalysis({ onFoodAnalyzed }) {
+  const [analyzing, setAnalyzing] = useState(false);
+  const [result, setResult] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+
+  const handleImageUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setImagePreview(URL.createObjectURL(file));
+    setAnalyzing(true);
+    setResult(null);
+
+    try {
+      const response = await APIService.analyzeFoodImage(file);
+      if (response.success) {
+        setResult(response.analysis);
+        onFoodAnalyzed(response.analysis);
+      }
+    } catch (error) {
+      console.error('Food analysis failed:', error);
+      alert('Food analysis failed. Please try again.');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-2 px-4 py-2 border rounded cursor-pointer hover:bg-gray-50">
+          <Upload className="h-4 w-4" />
+          Upload Food Image
+          <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+        </label>
+      </div>
+
+      {imagePreview && (
+        <div className="relative">
+          <img src={imagePreview} alt="Food" className="w-full max-w-md h-48 object-cover rounded" />
+          {analyzing && (
+            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded">
+              <div className="text-white text-center">
+                <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                <div>Analyzing food...</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {result && (
+        <div className="space-y-4">
+          <div className="p-4 bg-green-50 border border-green-200 rounded">
+            <h4 className="font-medium text-green-800 mb-2">{result.foodName}</h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="text-center p-2 bg-white rounded">
+                <div className="font-bold text-lg">{result.calories}</div>
+                <div className="text-gray-600">Calories</div>
+              </div>
+              <div className="text-center p-2 bg-white rounded">
+                <div className="font-bold text-lg">{result.protein}g</div>
+                <div className="text-gray-600">Protein</div>
+              </div>
+              <div className="text-center p-2 bg-white rounded">
+                <div className="font-bold text-lg">{result.carbs}g</div>
+                <div className="text-gray-600">Carbs</div>
+              </div>
+              <div className="text-center p-2 bg-white rounded">
+                <div className="font-bold text-lg">{result.fat}g</div>
+                <div className="text-gray-600">Fat</div>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-sm">Health Score:</span>
+              <div className="flex items-center gap-2">
+                <Progress value={result.healthScore} className="w-20" />
+                <span className="font-bold">{result.healthScore}/100</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <h4 className="font-medium">AI Recommendations:</h4>
+              {result.recommendations.map((rec, idx) => (
+                <div key={idx} className="p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+                  • {rec}
+                </div>
+              ))}
+            </div>
+            <div className="p-2 bg-green-100 border border-green-300 rounded text-sm text-green-700">
+              ✅ Automatically added to daily tracking
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
@@ -64,14 +169,66 @@ const generateMealPlan = (goals: string, activityLevel: string) => {
 export default function Nutrition() {
   const [selectedGoal, setSelectedGoal] = useState("maintenance");
   const [activityLevel, setActivityLevel] = useState("moderate");
+  const [aiRecommendations, setAiRecommendations] = useState(null);
   const [todayIntake, setTodayIntake] = useState({
-    calories: 1650,
-    protein: 120,
-    carbs: 180,
-    fat: 65
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0
   });
 
-  const mealPlan = useMemo(() => generateMealPlan(selectedGoal, activityLevel), [selectedGoal, activityLevel]);
+  const handleFoodAnalyzed = (foodData) => {
+    setTodayIntake(prev => ({
+      calories: prev.calories + foodData.calories,
+      protein: prev.protein + foodData.protein,
+      carbs: prev.carbs + foodData.carbs,
+      fat: prev.fat + foodData.fat
+    }));
+  };
+
+  useEffect(() => {
+    const loadRecommendations = async () => {
+      try {
+        const user = await APIService.getCurrentUser();
+        if (user) {
+          const attempts = await APIService.getTestHistory(user.id, 10);
+          if (attempts.length > 0) {
+            const recommendations = generateAIRecommendations(attempts);
+            setAiRecommendations(recommendations);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load AI recommendations:', error);
+      }
+    };
+    loadRecommendations();
+    
+    // Listen for test completion to update recommendations
+    const handleTestCompleted = () => {
+      loadRecommendations();
+    };
+    
+    window.addEventListener('testCompleted', handleTestCompleted);
+    return () => window.removeEventListener('testCompleted', handleTestCompleted);
+  }, []);
+
+  const mealPlan = useMemo(() => {
+    if (aiRecommendations) {
+      return {
+        name: "AI Personalized Plan",
+        calories: aiRecommendations.nutrition.calories,
+        protein: Math.round(aiRecommendations.nutrition.protein * 70),
+        carbs: Math.round(aiRecommendations.nutrition.carbs * 70),
+        fat: Math.round(aiRecommendations.nutrition.fats * 70),
+        meals: aiRecommendations.nutrition.meals.map((meal, idx) => ({
+          name: ["Breakfast", "Lunch", "Snack", "Dinner", "Post-workout"][idx] || "Meal",
+          calories: Math.round(aiRecommendations.nutrition.calories / aiRecommendations.nutrition.meals.length),
+          items: [meal]
+        }))
+      };
+    }
+    return generateMealPlan(selectedGoal, activityLevel);
+  }, [aiRecommendations, selectedGoal, activityLevel]);
   
   const macroData = [
     { name: 'Protein', value: todayIntake.protein * 4, color: COLORS[0] },
@@ -222,24 +379,16 @@ export default function Nutrition() {
             </CardContent>
           </Card>
 
-          {/* Quick Add Food */}
+          {/* Food Image Analysis */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Plus className="h-5 w-5" />
-                Quick Add Food
+                AI Food Analysis
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid md:grid-cols-4 gap-4">
-                <Input placeholder="Food name" />
-                <Input placeholder="Calories" type="number" />
-                <Input placeholder="Protein (g)" type="number" />
-                <Button className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Add Food
-                </Button>
-              </div>
+              <FoodImageAnalysis onFoodAnalyzed={handleFoodAnalyzed} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -273,31 +422,51 @@ export default function Nutrition() {
                 </div>
               </div>
 
-              <div className="space-y-4">
-                {mealPlan.meals.map((meal, idx) => (
-                  <Card key={idx}>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base flex items-center justify-between">
-                        <span className="flex items-center gap-2">
-                          <Utensils className="h-4 w-4" />
-                          {meal.name}
-                        </span>
-                        <Badge variant="outline">{meal.calories} cal</Badge>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="text-sm space-y-1">
-                        {meal.items.map((item, itemIdx) => (
-                          <li key={itemIdx} className="flex items-center gap-2">
-                            <div className="h-1.5 w-1.5 rounded-full bg-brand-500" />
-                            {item}
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              {aiRecommendations ? (
+                <div className="p-4 bg-green-50 border border-green-200 rounded">
+                  <h4 className="font-medium text-green-800 mb-3">AI Personalized Meal Plan</h4>
+                  <div className="space-y-2">
+                    {aiRecommendations.nutrition.meals.map((meal, idx) => (
+                      <div key={idx} className="p-3 bg-white rounded border">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium">{["Breakfast", "Lunch", "Snack", "Dinner", "Post-workout"][idx] || "Meal"}</span>
+                          <Badge variant="outline">{Math.round(aiRecommendations.nutrition.calories / aiRecommendations.nutrition.meals.length)} cal</Badge>
+                        </div>
+                        <div className="text-sm text-gray-600">{meal}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {mealPlan.meals.map((meal, idx) => (
+                    <Card key={idx}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center justify-between">
+                          <span className="flex items-center gap-2">
+                            <Utensils className="h-4 w-4" />
+                            {meal.name}
+                          </span>
+                          <Badge variant="outline">{meal.calories} cal</Badge>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="text-sm space-y-1">
+                          {meal.items.map((item, itemIdx) => (
+                            <li key={itemIdx} className="flex items-center gap-2">
+                              <div className="h-1.5 w-1.5 rounded-full bg-brand-500" />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  <div className="text-center p-4 bg-gray-50 rounded">
+                    <div className="text-sm text-muted-foreground">Complete fitness tests for AI personalized meal plans</div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -367,17 +536,57 @@ export default function Nutrition() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="p-3 rounded bg-green-50 border border-green-200">
-                <div className="font-medium text-green-800">Hydration</div>
-                <div className="text-sm text-green-600">Increase water intake to 3L daily for optimal performance</div>
+              {aiRecommendations ? (
+                <div className="grid gap-4">
+                  <div className="text-center p-4 bg-muted rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">{aiRecommendations.nutrition.calories}</div>
+                    <div className="text-sm text-muted-foreground">AI Recommended Calories</div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center p-3 bg-blue-50 rounded">
+                      <div className="font-bold">{Math.round(aiRecommendations.nutrition.protein * 70)}g</div>
+                      <div className="text-xs">Protein</div>
+                    </div>
+                    <div className="text-center p-3 bg-orange-50 rounded">
+                      <div className="font-bold">{Math.round(aiRecommendations.nutrition.carbs * 70)}g</div>
+                      <div className="text-xs">Carbs</div>
+                    </div>
+                    <div className="text-center p-3 bg-purple-50 rounded">
+                      <div className="font-bold">{Math.round(aiRecommendations.nutrition.fats * 70)}g</div>
+                      <div className="text-xs">Fats</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center p-4 bg-gray-50 rounded-lg">
+                  <div className="text-sm text-muted-foreground">Complete fitness tests to get AI nutrition recommendations</div>
+                </div>
+              )}
+              <div className="space-y-2">
+                <h4 className="font-medium">Personalized Meal Suggestions</h4>
+                {aiRecommendations ? (
+                  aiRecommendations.nutrition.meals.map((meal, idx) => (
+                    <div key={idx} className="p-2 rounded bg-green-50 border border-green-200">
+                      <div className="text-sm text-green-600">• {meal}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-2 rounded bg-gray-50 border">
+                    <div className="text-sm text-gray-600">• Complete your fitness tests for personalized meal recommendations</div>
+                  </div>
+                )}
               </div>
-              <div className="p-3 rounded bg-blue-50 border border-blue-200">
-                <div className="font-medium text-blue-800">Pre-workout</div>
-                <div className="text-sm text-blue-600">Add banana 30 minutes before training for better energy</div>
-              </div>
-              <div className="p-3 rounded bg-yellow-50 border border-yellow-200">
-                <div className="font-medium text-yellow-800">Recovery</div>
-                <div className="text-sm text-yellow-600">Include protein within 30 minutes post-workout</div>
+              <div className="space-y-2">
+                <h4 className="font-medium">Recommended Supplements</h4>
+                <div className="flex flex-wrap gap-2">
+                  {aiRecommendations ? (
+                    aiRecommendations.nutrition.supplements.map((supplement, idx) => (
+                      <Badge key={idx} variant="secondary">{supplement}</Badge>
+                    ))
+                  ) : (
+                    <Badge variant="outline">Complete tests for recommendations</Badge>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

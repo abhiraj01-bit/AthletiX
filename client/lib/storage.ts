@@ -3,6 +3,9 @@ export type Attempt = {
   test: "verticalJump" | "sitUps" | "pushUps" | "pullUps" | "shuttleRun" | "enduranceRun" | "flexibilityTest" | "agilityLadder" | "heightWeight";
   timestamp: number;
   data: Record<string, any>;
+  formScore?: number;
+  badge?: string;
+  recommendations?: string[];
   emgData?: {
     muscleActivity: number;
     fatigue: number;

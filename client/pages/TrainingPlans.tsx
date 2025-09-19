@@ -1,11 +1,64 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar, Clock, Target, Zap, CheckCircle, Play } from "lucide-react";
-import { getAttempts } from "@/lib/storage";
+import { generateAIRecommendations } from "@/lib/aiRecommendations";
+import APIService from "@/lib/api";
+
+function WorkoutHistory() {
+  const [workoutHistory, setWorkoutHistory] = useState([]);
+  
+  useEffect(() => {
+    const loadWorkoutHistory = async () => {
+      try {
+        const user = await APIService.getCurrentUser();
+        if (user) {
+          const attempts = await APIService.getTestHistory(user.id, 5);
+          const workouts = attempts.map(attempt => ({
+            date: new Date(attempt.createdAt).toLocaleDateString(),
+            workout: attempt.testType.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+            duration: "Test completed",
+            completed: attempt.formScore >= 50
+          }));
+          setWorkoutHistory(workouts);
+        }
+      } catch (error) {
+        console.error('Failed to load workout history:', error);
+      }
+    };
+    loadWorkoutHistory();
+    
+    const handleTestCompleted = () => {
+      loadWorkoutHistory();
+    };
+    
+    window.addEventListener('testCompleted', handleTestCompleted);
+    return () => window.removeEventListener('testCompleted', handleTestCompleted);
+  }, []);
+  
+  return (
+    <div className="space-y-2">
+      {workoutHistory.length === 0 ? (
+        <div className="text-muted-foreground text-center py-4">No workout history yet</div>
+      ) : (
+        workoutHistory.map((session, idx) => (
+          <div key={idx} className="flex items-center justify-between p-3 rounded border">
+            <div>
+              <div className="font-medium">{session.workout}</div>
+              <div className="text-sm text-muted-foreground">{session.date} • {session.duration}</div>
+            </div>
+            <Badge variant={session.completed ? "default" : "secondary"}>
+              {session.completed ? "Completed" : "Needs Improvement"}
+            </Badge>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
 
 const generateAIWorkout = (userStats: any) => {
   const workouts = [
@@ -56,16 +109,40 @@ const generateAIWorkout = (userStats: any) => {
 export default function TrainingPlans() {
   const [activeWorkout, setActiveWorkout] = useState<string | null>(null);
   const [completedExercises, setCompletedExercises] = useState<Set<string>>(new Set());
-  const attempts = useMemo(() => getAttempts(), []);
+  const [aiRecommendations, setAiRecommendations] = useState(null);
+
+  useEffect(() => {
+    const loadRecommendations = async () => {
+      try {
+        const user = await APIService.getCurrentUser();
+        if (user) {
+          const attempts = await APIService.getTestHistory(user.id, 10);
+          if (attempts.length > 0) {
+            const recommendations = generateAIRecommendations(attempts);
+            setAiRecommendations(recommendations);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load AI recommendations:', error);
+      }
+    };
+    loadRecommendations();
+    
+    const handleTestCompleted = () => {
+      loadRecommendations();
+    };
+    
+    window.addEventListener('testCompleted', handleTestCompleted);
+    return () => window.removeEventListener('testCompleted', handleTestCompleted);
+  }, []);
   
   const userStats = useMemo(() => {
-    const recent = attempts.slice(0, 10);
     return {
-      avgPerformance: recent.length > 0 ? 75 : 0,
+      avgPerformance: 75,
       weakAreas: ["Upper Body", "Flexibility"],
       strongAreas: ["Endurance", "Core"]
     };
-  }, [attempts]);
+  }, []);
 
   const workouts = generateAIWorkout(userStats);
 
@@ -102,30 +179,46 @@ export default function TrainingPlans() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-brand-500" />
-            AI Recommendations
+            AI Training Recommendations
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid md:grid-cols-3 gap-4">
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Focus Areas</div>
-              <div className="flex flex-wrap gap-1">
-                {userStats.weakAreas.map(area => (
-                  <Badge key={area} variant="destructive">{area}</Badge>
-                ))}
+          <div className="space-y-4">
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <div className="text-sm text-muted-foreground mb-1">Training Focus</div>
+                <div className="space-y-1">
+                  {aiRecommendations ? (
+                    aiRecommendations.training.focus.map((focus, idx) => (
+                      <div key={idx} className="text-sm font-medium">• {focus}</div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-muted-foreground">• Complete tests for recommendations</div>
+                  )}
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Strong Points</div>
-              <div className="flex flex-wrap gap-1">
-                {userStats.strongAreas.map(area => (
-                  <Badge key={area} variant="default">{area}</Badge>
-                ))}
+              <div>
+                <div className="text-sm text-muted-foreground mb-1">Recommended Exercises</div>
+                <div className="space-y-1">
+                  {aiRecommendations ? (
+                    aiRecommendations.training.exercises.slice(0, 3).map((exercise, idx) => (
+                      <div key={idx} className="text-sm">• {exercise}</div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-muted-foreground">• Complete fitness assessment</div>
+                  )}
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Recommended Frequency</div>
-              <div className="text-lg font-semibold">4-5 days/week</div>
+              <div className="space-y-2">
+                <div>
+                  <div className="text-sm text-muted-foreground">Frequency</div>
+                  <div className="font-semibold">{aiRecommendations?.training.frequency || "Complete tests"}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground">Intensity</div>
+                  <div className="font-semibold">{aiRecommendations?.training.intensity || "Complete tests"}</div>
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -209,23 +302,7 @@ export default function TrainingPlans() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            {[
-              { date: "Today", workout: "Strength Building", duration: "45 min", completed: true },
-              { date: "Yesterday", workout: "Cardio Endurance", duration: "30 min", completed: true },
-              { date: "2 days ago", workout: "Flexibility & Recovery", duration: "25 min", completed: false }
-            ].map((session, idx) => (
-              <div key={idx} className="flex items-center justify-between p-3 rounded border">
-                <div>
-                  <div className="font-medium">{session.workout}</div>
-                  <div className="text-sm text-muted-foreground">{session.date} • {session.duration}</div>
-                </div>
-                <Badge variant={session.completed ? "default" : "secondary"}>
-                  {session.completed ? "Completed" : "Skipped"}
-                </Badge>
-              </div>
-            ))}
-          </div>
+          <WorkoutHistory />
         </CardContent>
       </Card>
     </div>

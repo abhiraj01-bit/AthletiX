@@ -5,9 +5,10 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { getAttempts } from "@/lib/storage";
+
 import { Link } from "react-router-dom";
 import { createClient } from '@supabase/supabase-js';
+import { ComprehensiveReport } from "@/components/ComprehensiveReport";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -23,7 +24,6 @@ const TESTS = [
   { key: "enduranceRun", label: "Endurance Run", unit: "km", field: "distanceKm" },
   { key: "flexibilityTest", label: "Flexibility", unit: "cm", field: "reachCm" },
   { key: "agilityLadder", label: "Agility", unit: "sec", field: "completionTime" },
-  { key: "enduranceRun", label: "Endurance Run", unit: "km", field: "distanceKm" },
   { key: "heightWeight", label: "Height/Weight", unit: "cm", field: "heightCm" },
 ] as const;
 
@@ -82,12 +82,6 @@ const BENCHMARKS: Record<TestKey, Bench[]> = {
     { label: "State Level", value: 8 },
     { label: "National Standard", value: 6 },
   ],
-  enduranceRun: [
-    { label: "Good", value: 2 },
-    { label: "District Elite", value: 3 },
-    { label: "State Level", value: 4 },
-    { label: "National Standard", value: 5 },
-  ],
   heightWeight: [
     { label: "Good", value: 160 },
     { label: "District Elite", value: 170 },
@@ -98,27 +92,31 @@ const BENCHMARKS: Record<TestKey, Bench[]> = {
 
 export default function Analytics() {
   const [active, setActive] = useState<TestKey>("verticalJump");
-  const [apiAttempts, setApiAttempts] = useState<any[]>([]);
+  const [attempts, setAttempts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const localAttempts = useMemo(() => getAttempts(), []);
   
-  // Fetch real test data from API
+  // Fetch test data from database only
   const fetchTestData = async () => {
     setLoading(true);
     try {
-      // Get authenticated user
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setAttempts([]);
+        return;
+      }
       
       const response = await fetch(`/api/tests/history/${user.id}?limit=50`);
-      console.log('Fetching data for authenticated user:', user.id);
+      console.log('Fetching database data for user:', user.id);
       if (response.ok) {
         const data = await response.json();
-        setApiAttempts(data.attempts || []);
-        console.log('Fetched test data:', data.attempts?.length || 0, 'attempts');
+        setAttempts(data.attempts || []);
+        console.log('Fetched database data:', data.attempts?.length || 0, 'attempts');
+      } else {
+        setAttempts([]);
       }
     } catch (error) {
-      console.error('Failed to fetch test data:', error);
+      console.error('Failed to fetch database data:', error);
+      setAttempts([]);
     } finally {
       setLoading(false);
     }
@@ -145,25 +143,19 @@ export default function Analytics() {
     };
   }, []);
   
-  // Combine API data with local storage data
-  const attempts = useMemo(() => {
-    const combined = [...apiAttempts, ...localAttempts];
-    // Remove duplicates based on ID
-    const unique = combined.filter((attempt, index, self) => 
-      index === self.findIndex(a => a.id === attempt.id)
-    );
-    return unique.sort((a, b) => new Date(b.createdAt || b.timestamp).getTime() - new Date(a.createdAt || a.timestamp).getTime());
-  }, [apiAttempts, localAttempts]);
+  // Sort database data by creation date
+  const sortedAttempts = useMemo(() => {
+    return attempts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [attempts]);
 
   const series = useMemo<Point[]>(() => {
     const meta = TESTS.find((t) => t.key === active)!;
-    console.log(`Analytics for ${active}:`, { meta, attempts: attempts.length });
+    console.log(`Analytics for ${active}:`, { meta, attempts: sortedAttempts.length });
     
-    const points = attempts
-      .filter((a) => (a.test || a.testType) === active)
+    const points = sortedAttempts
+      .filter((a) => a.testType === active)
       .map((a) => {
-        const timestamp = a.createdAt || a.timestamp;
-        const metrics = a.metrics || a.data || {};
+        const metrics = a.metrics || {};
         console.log('Processing attempt:', { 
           testType: a.test || a.testType, 
           metrics, 
@@ -172,10 +164,10 @@ export default function Analytics() {
           formScore: a.formScore || a.form_score
         });
         return {
-          date: new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+          date: new Date(a.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
           value: Number(metrics[meta.field] ?? 0),
-          formScore: a.formScore || a.form_score || 0,
-          aiAnalysis: a.analysisResult || a.analysis_result
+          formScore: a.formScore || 0,
+          aiAnalysis: a.analysisResult
         };
       })
       .filter((d) => !Number.isNaN(d.value) && d.value > 0)
@@ -183,15 +175,8 @@ export default function Analytics() {
     
     console.log('Final points for graph:', points);
     
-    if (points.length) return points;
-    // Fallback sample data if user has no attempts yet
-    return Array.from({ length: 8 }, (_, i) => ({ 
-      date: `D${i + 1}`, 
-      value: 20 + i * 4 + Math.round(Math.random() * 4),
-      formScore: 70 + Math.random() * 20,
-      aiAnalysis: null
-    }));
-  }, [attempts, active]);
+    return points; // Only return real data, no mock data
+  }, [sortedAttempts, active]);
 
   const meta = TESTS.find((t) => t.key === active)!;
   const last = series.at(-1)?.value ?? 0;
@@ -203,17 +188,16 @@ export default function Analytics() {
   
   // AI Analysis insights
   const aiInsights = useMemo(() => {
-    const recentAttempts = attempts.filter(a => (a.test || a.testType) === active).slice(0, 5);
+    const recentAttempts = sortedAttempts.filter(a => a.testType === active).slice(0, 5);
     const recommendations = new Set<string>();
     const commonIssues = new Set<string>();
     
     recentAttempts.forEach(attempt => {
-      const analysis = attempt.analysisResult || attempt.analysis_result;
-      if (analysis?.recommendations) {
-        analysis.recommendations.forEach((rec: string) => recommendations.add(rec));
+      if (attempt.recommendations) {
+        attempt.recommendations.forEach((rec: string) => recommendations.add(rec));
       }
-      if (analysis?.errors) {
-        analysis.errors.forEach((error: string) => commonIssues.add(error));
+      if (attempt.analysisResult?.errors) {
+        attempt.analysisResult.errors.forEach((error: string) => commonIssues.add(error));
       }
     });
     
@@ -222,7 +206,7 @@ export default function Analytics() {
       issues: Array.from(commonIssues).slice(0, 2),
       improvementTrend: trendSlope > 0 ? 'improving' : trendSlope < 0 ? 'declining' : 'stable'
     };
-  }, [attempts, active, trendSlope]);
+  }, [sortedAttempts, active, trendSlope]);
 
   const bench = BENCHMARKS[active];
   const nextTarget = bench.find((b) => b.value > last) ?? bench.at(-1)!;
@@ -232,16 +216,23 @@ export default function Analytics() {
       key: t.key,
       label: t.label,
       unit: t.unit,
-      data: attempts
-        .filter((a) => a.test === t.key)
-        .map((a) => ({ x: new Date(a.timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" }), y: Number(a.data?.[t.field] ?? 0) }))
+      data: sortedAttempts
+        .filter((a) => a.testType === t.key)
+        .map((a) => ({ x: new Date(a.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }), y: Number(a.metrics?.[t.field] ?? 0) }))
         .filter((d) => d.y > 0)
         .slice(-6),
     })),
-  [attempts]);
+  [sortedAttempts]);
 
   return (
-    <div className="grid lg:grid-cols-3 gap-6">
+    <Tabs defaultValue="analytics" className="space-y-6">
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="analytics">Performance Analytics</TabsTrigger>
+        <TabsTrigger value="report">Comprehensive Report</TabsTrigger>
+      </TabsList>
+      
+      <TabsContent value="analytics">
+        <div className="grid lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 grid gap-6">
         <Card>
           <CardHeader>
@@ -259,130 +250,156 @@ export default function Analytics() {
             </CardTitle>
           </CardHeader>
           <CardContent className="grid md:grid-cols-4 gap-4">
-            <Stat title="Personal Best" value={`${best} ${meta.unit}`} />
-            <Stat title="Last Attempt" value={`${last} ${meta.unit}`} />
-            <Stat title="Avg Form Score" value={`${avgFormScore || 0}/100`} />
-            <Stat title="AI Trend" value={aiInsights.improvementTrend} />
+            {series.length > 0 ? (
+              <>
+                <Stat title="Personal Best" value={`${best} ${meta.unit}`} />
+                <Stat title="Last Attempt" value={`${last} ${meta.unit}`} />
+                <Stat title="Avg Form Score" value={`${avgFormScore || 0}/100`} />
+                <Stat title="AI Trend" value={aiInsights.improvementTrend} />
+              </>
+            ) : (
+              <>
+                <Stat title="Personal Best" value="No data" />
+                <Stat title="Last Attempt" value="No data" />
+                <Stat title="Avg Form Score" value="No data" />
+                <Stat title="AI Trend" value="No data" />
+              </>
+            )}
             <div className="md:col-span-4">
-              <ChartContainer 
-                config={{ 
-                  value: { label: meta.label, color: "hsl(var(--brand-500))" },
-                  formScore: { label: "Form Score", color: "hsl(var(--emerald-500))" }
-                }} 
-                className="h-64"
-              >
-                <LineChart data={series}>
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
-                  <YAxis hide />
-                  <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                  <Line dataKey="value" type="monotone" stroke="hsl(var(--brand-500))" strokeWidth={2} dot={{ r: 4 }} />
-                  <Line dataKey="formScore" type="monotone" stroke="hsl(var(--emerald-500))" strokeWidth={2} dot={{ r: 4 }} />
-                </LineChart>
-              </ChartContainer>
+              {series.length > 0 ? (
+                <ChartContainer 
+                  config={{ 
+                    value: { label: meta.label, color: "hsl(var(--brand-500))" },
+                    formScore: { label: "Form Score", color: "hsl(var(--emerald-500))" }
+                  }} 
+                  className="h-64"
+                >
+                  <LineChart data={series}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
+                    <YAxis hide />
+                    <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                    <Line dataKey="value" type="monotone" stroke="hsl(var(--brand-500))" strokeWidth={2} dot={{ r: 4 }} />
+                    <Line dataKey="formScore" type="monotone" stroke="hsl(var(--emerald-500))" strokeWidth={2} dot={{ r: 4 }} />
+                  </LineChart>
+                </ChartContainer>
+              ) : (
+                <div className="h-64 border rounded-lg flex items-center justify-center text-muted-foreground">
+                  No test data available for {meta.label}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>AI Form Analysis</CardTitle>
-          </CardHeader>
-          <CardContent className="grid md:grid-cols-2 gap-6">
-            <div>
-              <div className="text-sm text-muted-foreground mb-2">Form Score Trend</div>
-              <ChartContainer 
-                config={{ formScore: { label: "Form Score", color: "hsl(var(--emerald-500))" } }} 
-                className="h-48"
-              >
-                <AreaChart data={series.slice(-10)}>
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tickLine={false} axisLine={false} />
-                  <YAxis domain={[0, 100]} />
-                  <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                  <Area 
-                    dataKey="formScore" 
-                    type="monotone" 
-                    stroke="hsl(var(--emerald-500))" 
-                    fill="hsl(var(--emerald-500)/.2)" 
-                  />
-                </AreaChart>
-              </ChartContainer>
-            </div>
-            
-            <div className="space-y-4">
+        {series.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>AI Form Analysis</CardTitle>
+            </CardHeader>
+            <CardContent className="grid md:grid-cols-2 gap-6">
               <div>
-                <div className="text-sm text-muted-foreground">Current Form Score</div>
-                <div className="text-3xl font-bold text-emerald-600">{avgFormScore}/100</div>
+                <div className="text-sm text-muted-foreground mb-2">Form Score Trend</div>
+                <ChartContainer 
+                  config={{ formScore: { label: "Form Score", color: "hsl(var(--emerald-500))" } }} 
+                  className="h-48"
+                >
+                  <AreaChart data={series.slice(-10)}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tickLine={false} axisLine={false} />
+                    <YAxis domain={[0, 100]} />
+                    <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                    <Area 
+                      dataKey="formScore" 
+                      type="monotone" 
+                      stroke="hsl(var(--emerald-500))" 
+                      fill="hsl(var(--emerald-500)/.2)" 
+                    />
+                  </AreaChart>
+                </ChartContainer>
               </div>
               
-              <div>
-                <div className="text-sm text-muted-foreground mb-2">Performance vs Form</div>
-                <div className="grid grid-cols-2 gap-2 text-center">
-                  <div className="p-2 rounded border">
-                    <div className="text-lg font-semibold">{last}</div>
-                    <div className="text-xs text-muted-foreground">Performance</div>
-                  </div>
-                  <div className="p-2 rounded border">
-                    <div className="text-lg font-semibold">{series.at(-1)?.formScore?.toFixed(0) || 0}</div>
-                    <div className="text-xs text-muted-foreground">Form Score</div>
+              <div className="space-y-4">
+                <div>
+                  <div className="text-sm text-muted-foreground">Current Form Score</div>
+                  <div className="text-3xl font-bold text-emerald-600">{avgFormScore}/100</div>
+                </div>
+                
+                <div>
+                  <div className="text-sm text-muted-foreground mb-2">Performance vs Form</div>
+                  <div className="grid grid-cols-2 gap-2 text-center">
+                    <div className="p-2 rounded border">
+                      <div className="text-lg font-semibold">{last}</div>
+                      <div className="text-xs text-muted-foreground">Performance</div>
+                    </div>
+                    <div className="p-2 rounded border">
+                      <div className="text-lg font-semibold">{series.at(-1)?.formScore?.toFixed(0) || 0}</div>
+                      <div className="text-xs text-muted-foreground">Form Score</div>
+                    </div>
                   </div>
                 </div>
+                
+                <Button asChild variant="secondary" className="w-full">
+                  <Link to="/tests">Improve Form</Link>
+                </Button>
               </div>
-              
-              <Button asChild variant="secondary" className="w-full">
-                <Link to="/tests">Improve Form</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
         
-        <Card>
-          <CardHeader>
-            <CardTitle>Benchmark Comparison</CardTitle>
-          </CardHeader>
-          <CardContent className="grid md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
-              <ChartContainer config={{ you: { label: "You", color: "hsl(var(--brand-500))" } }} className="h-64">
-                <BarChart data={bench.map((b) => ({ name: b.label, target: b.value, you: last }))}>
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                  <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} />
-                  <YAxis />
-                  <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                  <Bar dataKey="target" fill="hsl(var(--muted-foreground)/.3)" radius={6} />
-                  <Bar dataKey="you" fill="hsl(var(--brand-500))" radius={6} />
-                </BarChart>
-              </ChartContainer>
-            </div>
-            <div className="space-y-2">
-              <div className="text-sm text-muted-foreground">Next target</div>
-              <div className="text-2xl font-semibold">{nextTarget.label}</div>
-              <div className="text-sm">Reach {nextTarget.value} {meta.unit}. You're at {last}.</div>
-              <Button asChild variant="secondary" className="mt-2"><Link to="/tests">Practice now</Link></Button>
-            </div>
-          </CardContent>
-        </Card>
+        {series.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Benchmark Comparison</CardTitle>
+            </CardHeader>
+            <CardContent className="grid md:grid-cols-3 gap-4">
+              <div className="md:col-span-2">
+                <ChartContainer config={{ you: { label: "You", color: "hsl(var(--brand-500))" } }} className="h-64">
+                  <BarChart data={bench.map((b) => ({ name: b.label, target: b.value, you: last }))}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} />
+                    <YAxis />
+                    <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                    <Bar dataKey="target" fill="hsl(var(--muted-foreground)/.3)" radius={6} />
+                    <Bar dataKey="you" fill="hsl(var(--brand-500))" radius={6} />
+                  </BarChart>
+                </ChartContainer>
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm text-muted-foreground">Next target</div>
+                <div className="text-2xl font-semibold">{nextTarget.label}</div>
+                <div className="text-sm">Reach {nextTarget.value} {meta.unit}. You're at {last}.</div>
+                <Button asChild variant="secondary" className="mt-2"><Link to="/tests">Practice now</Link></Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>EMG Muscle Analysis</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <Stat title="Avg Muscle Activity" value="67.2%" />
-              <Stat title="Fatigue Level" value="23.1%" />
-            </div>
-            <ChartContainer config={{ emg: { label: "EMG", color: "hsl(var(--brand-500))" } }} className="h-32">
-              <AreaChart data={[{day:"Mon",value:45},{day:"Tue",value:52},{day:"Wed",value:67},{day:"Thu",value:71},{day:"Fri",value:58}]}>
-                <XAxis dataKey="day" hide />
-                <YAxis hide />
-                <Area dataKey="value" stroke="hsl(var(--brand-500))" fill="hsl(var(--brand-500)/.2)" />
-              </AreaChart>
-            </ChartContainer>
-          </CardContent>
-        </Card>
+        {sortedAttempts.some(a => a.emgData) ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>EMG Muscle Analysis</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm text-muted-foreground">
+                Real EMG data from connected sensor
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>EMG Sensor</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm text-muted-foreground text-center py-4">
+                Connect EMG sensor during tests to see muscle analysis data
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
@@ -459,7 +476,7 @@ export default function Analytics() {
           </CardContent>
         </Card>
 
-        {!attempts.length && (
+        {!sortedAttempts.length && (
           <Card>
             <CardHeader>
               <CardTitle>Get Started</CardTitle>
@@ -470,8 +487,14 @@ export default function Analytics() {
             </CardContent>
           </Card>
         )}
-      </div>
-    </div>
+        </div>
+        </div>
+      </TabsContent>
+      
+      <TabsContent value="report">
+        <ComprehensiveReport />
+      </TabsContent>
+    </Tabs>
   );
 }
 

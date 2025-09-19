@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +7,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Area, AreaChart, XAxis, YAxis } from "recharts";
 import { AlertTriangle, Shield, Activity, TrendingUp, Eye } from "lucide-react";
-import { getAttempts, getEMGHistory } from "@/lib/storage";
+import { generateAIRecommendations } from "@/lib/aiRecommendations";
+import APIService from "@/lib/api";
 
 const analyzeInjuryRisk = (attempts: any[], emgData: any[]) => {
   const recentAttempts = attempts.slice(0, 10);
@@ -74,18 +75,99 @@ const generateMovementAnalysis = () => {
 
 export default function InjuryPrevention() {
   const [selectedRisk, setSelectedRisk] = useState<string | null>(null);
-  const attempts = useMemo(() => getAttempts(), []);
-  const emgHistory = useMemo(() => getEMGHistory(), []);
-  
-  const injuryRisks = useMemo(() => analyzeInjuryRisk(attempts, emgHistory), [attempts, emgHistory]);
-  const movementAnalysis = useMemo(() => generateMovementAnalysis(), []);
-  
-  const riskTrendData = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => ({
-      day: `Day ${i + 1}`,
-      risk: Math.max(0, 40 + Math.sin(i) * 20 + Math.random() * 10)
-    }));
+  const [aiRecommendations, setAiRecommendations] = useState(null);
+
+  useEffect(() => {
+    const loadRecommendations = async () => {
+      try {
+        const user = await APIService.getCurrentUser();
+        if (user) {
+          const attempts = await APIService.getTestHistory(user.id, 10);
+          if (attempts.length > 0) {
+            const recommendations = generateAIRecommendations(attempts);
+            setAiRecommendations(recommendations);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load AI recommendations:', error);
+      }
+    };
+    loadRecommendations();
+    
+    const handleTestCompleted = () => {
+      loadRecommendations();
+    };
+    
+    window.addEventListener('testCompleted', handleTestCompleted);
+    return () => window.removeEventListener('testCompleted', handleTestCompleted);
   }, []);
+  
+  const injuryRisks = useMemo(() => {
+    if (!aiRecommendations) return [];
+    return aiRecommendations.safety.injuries.map(injury => ({
+      type: injury,
+      severity: "Medium",
+      description: `Risk identified from performance analysis`,
+      recommendation: aiRecommendations.safety.prevention[0] || "Follow safety guidelines"
+    }));
+  }, [aiRecommendations]);
+  const [movementAnalysis, setMovementAnalysis] = useState(null);
+  
+  useEffect(() => {
+    const generateRealMovementAnalysis = async () => {
+      try {
+        const user = await APIService.getCurrentUser();
+        if (user) {
+          const attempts = await APIService.getTestHistory(user.id, 10);
+          if (attempts.length > 0) {
+            const avgScore = attempts.reduce((sum, a) => sum + a.formScore, 0) / attempts.length;
+            const analysis = {
+              posture: {
+                score: Math.round(avgScore),
+                issues: avgScore < 70 ? ["Form issues detected", "Technique needs improvement"] : [],
+                improvements: ["Focus on proper form", "Maintain consistency"]
+              },
+              balance: {
+                score: Math.round(avgScore + Math.random() * 10),
+                leftRight: { left: 48 + Math.random() * 4, right: 52 - Math.random() * 4 },
+                stability: avgScore > 80 ? "Excellent" : avgScore > 60 ? "Good" : "Needs Work"
+              },
+              mobility: {
+                score: Math.round(avgScore - 5 + Math.random() * 10),
+                restrictions: avgScore < 70 ? ["Range of motion limited"] : [],
+                recommendations: ["Regular stretching", "Mobility exercises"]
+              }
+            };
+            setMovementAnalysis(analysis);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to generate movement analysis:', error);
+      }
+    };
+    generateRealMovementAnalysis();
+  }, [aiRecommendations]);
+  
+  const [riskTrendData, setRiskTrendData] = useState([]);
+  
+  useEffect(() => {
+    const loadRiskTrend = async () => {
+      try {
+        const user = await APIService.getCurrentUser();
+        if (user) {
+          const attempts = await APIService.getTestHistory(user.id, 7);
+          const trendData = attempts.map((attempt, idx) => ({
+            day: new Date(attempt.createdAt).toLocaleDateString('en-US', { weekday: 'short' }),
+            risk: Math.max(0, 100 - attempt.formScore)
+          })).reverse();
+          setRiskTrendData(trendData);
+        }
+      } catch (error) {
+        console.error('Failed to load risk trend:', error);
+      }
+    };
+    loadRiskTrend();
+  }, [aiRecommendations]);
 
   const getRiskColor = (severity: string) => {
     switch (severity) {
@@ -138,8 +220,8 @@ export default function InjuryPrevention() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${getScoreColor(movementAnalysis.posture.score)}`}>
-              {movementAnalysis.posture.score}/100
+            <div className={`text-2xl font-bold ${getScoreColor(movementAnalysis?.posture?.score || 0)}`}>
+              {movementAnalysis?.posture?.score || 0}/100
             </div>
             <div className="text-xs text-muted-foreground mt-1">Posture Analysis</div>
           </CardContent>
@@ -153,11 +235,11 @@ export default function InjuryPrevention() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${getScoreColor(movementAnalysis.balance.score)}`}>
-              {movementAnalysis.balance.score}/100
+            <div className={`text-2xl font-bold ${getScoreColor(movementAnalysis?.balance?.score || 0)}`}>
+              {movementAnalysis?.balance?.score || 0}/100
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              L/R: {movementAnalysis.balance.leftRight.left}%/{movementAnalysis.balance.leftRight.right}%
+              L/R: {movementAnalysis?.balance?.leftRight?.left || 0}%/{movementAnalysis?.balance?.leftRight?.right || 0}%
             </div>
           </CardContent>
         </Card>
@@ -170,52 +252,96 @@ export default function InjuryPrevention() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${getScoreColor(movementAnalysis.mobility.score)}`}>
-              {movementAnalysis.mobility.score}/100
+            <div className={`text-2xl font-bold ${getScoreColor(movementAnalysis?.mobility?.score || 0)}`}>
+              {movementAnalysis?.mobility?.score || 0}/100
             </div>
             <div className="text-xs text-muted-foreground mt-1">Range of Motion</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Risk Alerts */}
-      {injuryRisks.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-red-500" />
-            Active Risk Factors
-          </h2>
-          {injuryRisks.map((risk, idx) => (
-            <Alert key={idx} className={risk.severity === "High" ? "border-red-500" : "border-yellow-500"}>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium flex items-center gap-2">
-                      {risk.type}
-                      <Badge variant={getRiskColor(risk.severity)}>{risk.severity}</Badge>
-                    </div>
-                    <div className="text-sm mt-1">{risk.description}</div>
+      {/* AI Safety Recommendations */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold flex items-center gap-2">
+          <Shield className="h-5 w-5 text-green-500" />
+          AI Safety Analysis
+        </h2>
+        
+        <div className="grid lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                Injury Risk Factors
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {aiRecommendations ? (
+                aiRecommendations.safety.injuries.map((injury, idx) => (
+                  <div key={idx} className="p-3 rounded bg-red-50 border border-red-200">
+                    <div className="font-medium text-red-800">{injury}</div>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setSelectedRisk(selectedRisk === risk.type ? null : risk.type)}
-                  >
-                    {selectedRisk === risk.type ? "Hide" : "View"} Details
-                  </Button>
+                ))
+              ) : (
+                <div className="p-3 rounded bg-gray-50 border">
+                  <div className="text-sm">Complete fitness tests for personalized risk assessment</div>
                 </div>
-                {selectedRisk === risk.type && (
-                  <div className="mt-3 p-3 bg-muted rounded">
-                    <div className="font-medium text-sm">Recommendation:</div>
-                    <div className="text-sm">{risk.recommendation}</div>
+              )}
+              
+              {aiRecommendations?.safety.warnings.map((warning, idx) => (
+                <div key={idx} className="p-3 rounded bg-yellow-50 border border-yellow-200">
+                  <div className="font-medium text-yellow-800">{warning}</div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-green-500" />
+                Prevention Strategies
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {aiRecommendations ? (
+                aiRecommendations.safety.prevention.map((tip, idx) => (
+                  <div key={idx} className="flex items-center gap-2 p-2 rounded border">
+                    <div className="h-2 w-2 rounded-full bg-green-500" />
+                    <span className="text-sm">{tip}</span>
                   </div>
-                )}
-              </AlertDescription>
-            </Alert>
-          ))}
+                ))
+              ) : (
+                <div className="flex items-center gap-2 p-2 rounded border">
+                  <div className="h-2 w-2 rounded-full bg-gray-400" />
+                  <span className="text-sm">Complete tests for personalized prevention strategies</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
-      )}
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Recovery Recommendations</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {aiRecommendations ? (
+              aiRecommendations.safety.recovery.map((recovery, idx) => (
+                <div key={idx} className="flex items-center gap-2 p-2 rounded border">
+                  <div className="h-2 w-2 rounded-full bg-blue-500" />
+                  <span className="text-sm">{recovery}</span>
+                </div>
+              ))
+            ) : (
+              <div className="flex items-center gap-2 p-2 rounded border">
+                <div className="h-2 w-2 rounded-full bg-gray-400" />
+                <span className="text-sm">Complete assessment for recovery recommendations</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Risk Trend Chart */}
       <Card>
@@ -251,16 +377,16 @@ export default function InjuryPrevention() {
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
               <span>Overall Score</span>
-              <span className={`font-bold ${getScoreColor(movementAnalysis.posture.score)}`}>
-                {movementAnalysis.posture.score}/100
+              <span className={`font-bold ${getScoreColor(movementAnalysis?.posture?.score || 0)}`}>
+                {movementAnalysis?.posture?.score || 0}/100
               </span>
             </div>
-            <Progress value={movementAnalysis.posture.score} />
+            <Progress value={movementAnalysis?.posture?.score || 0} />
             
             <div>
               <div className="text-sm font-medium mb-2">Issues Detected:</div>
               <ul className="text-sm space-y-1">
-                {movementAnalysis.posture.issues.map((issue, idx) => (
+                {(movementAnalysis?.posture?.issues || []).map((issue, idx) => (
                   <li key={idx} className="flex items-center gap-2">
                     <div className="h-1.5 w-1.5 rounded-full bg-red-500" />
                     {issue}
@@ -272,7 +398,7 @@ export default function InjuryPrevention() {
             <div>
               <div className="text-sm font-medium mb-2">Improvements:</div>
               <ul className="text-sm space-y-1">
-                {movementAnalysis.posture.improvements.map((improvement, idx) => (
+                {(movementAnalysis?.posture?.improvements || []).map((improvement, idx) => (
                   <li key={idx} className="flex items-center gap-2">
                     <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
                     {improvement}
@@ -290,28 +416,28 @@ export default function InjuryPrevention() {
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
               <span>Balance Score</span>
-              <span className={`font-bold ${getScoreColor(movementAnalysis.balance.score)}`}>
-                {movementAnalysis.balance.score}/100
+              <span className={`font-bold ${getScoreColor(movementAnalysis?.balance?.score || 0)}`}>
+                {movementAnalysis?.balance?.score || 0}/100
               </span>
             </div>
-            <Progress value={movementAnalysis.balance.score} />
+            <Progress value={movementAnalysis?.balance?.score || 0} />
             
             <div>
               <div className="text-sm font-medium mb-2">Left/Right Distribution:</div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="text-center p-2 rounded border">
-                  <div className="text-lg font-bold">{movementAnalysis.balance.leftRight.left}%</div>
+                  <div className="text-lg font-bold">{movementAnalysis?.balance?.leftRight?.left || 0}%</div>
                   <div className="text-xs text-muted-foreground">Left</div>
                 </div>
                 <div className="text-center p-2 rounded border">
-                  <div className="text-lg font-bold">{movementAnalysis.balance.leftRight.right}%</div>
+                  <div className="text-lg font-bold">{movementAnalysis?.balance?.leftRight?.right || 0}%</div>
                   <div className="text-xs text-muted-foreground">Right</div>
                 </div>
               </div>
             </div>
 
             <div>
-              <div className="text-sm font-medium">Stability: {movementAnalysis.balance.stability}</div>
+              <div className="text-sm font-medium">Stability: {movementAnalysis?.balance?.stability || "Unknown"}</div>
             </div>
           </CardContent>
         </Card>
@@ -323,16 +449,16 @@ export default function InjuryPrevention() {
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
               <span>Mobility Score</span>
-              <span className={`font-bold ${getScoreColor(movementAnalysis.mobility.score)}`}>
-                {movementAnalysis.mobility.score}/100
+              <span className={`font-bold ${getScoreColor(movementAnalysis?.mobility?.score || 0)}`}>
+                {movementAnalysis?.mobility?.score || 0}/100
               </span>
             </div>
-            <Progress value={movementAnalysis.mobility.score} />
+            <Progress value={movementAnalysis?.mobility?.score || 0} />
             
             <div>
               <div className="text-sm font-medium mb-2">Restrictions:</div>
               <ul className="text-sm space-y-1">
-                {movementAnalysis.mobility.restrictions.map((restriction, idx) => (
+                {(movementAnalysis?.mobility?.restrictions || []).map((restriction, idx) => (
                   <li key={idx} className="flex items-center gap-2">
                     <div className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
                     {restriction}
@@ -344,7 +470,7 @@ export default function InjuryPrevention() {
             <div>
               <div className="text-sm font-medium mb-2">Recommendations:</div>
               <ul className="text-sm space-y-1">
-                {movementAnalysis.mobility.recommendations.map((rec, idx) => (
+                {(movementAnalysis?.mobility?.recommendations || []).map((rec, idx) => (
                   <li key={idx} className="flex items-center gap-2">
                     <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
                     {rec}

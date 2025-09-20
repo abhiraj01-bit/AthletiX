@@ -24,23 +24,39 @@ export interface SmartRecommendations {
   };
 }
 
-export function generateSmartRecommendations(attempts: TestAttempt[]): SmartRecommendations {
-  if (!attempts.length) return getDefaultRecommendations();
+export function generateSmartRecommendations(attempts: TestAttempt[], emgSessions: any[] = []): SmartRecommendations {
+  if (!attempts.length && !emgSessions.length) return getDefaultRecommendations();
 
   const latest = attempts[0];
-  const avgFormScore = attempts.reduce((sum, a) => sum + a.formScore, 0) / attempts.length;
+  const avgFormScore = attempts.length ? attempts.reduce((sum, a) => sum + a.formScore, 0) / attempts.length : 70;
   const testTypes = [...new Set(attempts.map(a => a.testType))];
   const weakAreas = getWeakAreas(attempts);
   const strongAreas = getStrongAreas(attempts);
+  
+  // Analyze EMG data
+  const emgAnalysis = analyzeEMGData(emgSessions);
 
   return {
-    nutrition: generateNutritionPlan(latest, avgFormScore, testTypes),
+    nutrition: generateNutritionPlan(latest, avgFormScore, testTypes, emgAnalysis),
     training: generateTrainingPlan(weakAreas, strongAreas, avgFormScore),
     safety: generateSafetyPlan(attempts, weakAreas)
   };
 }
 
-function generateNutritionPlan(latest: TestAttempt, avgScore: number, testTypes: string[]) {
+function analyzeEMGData(emgSessions: any[]) {
+  if (!emgSessions.length) return { avgFatigue: 0, avgActivity: 0, recoveryNeeded: false };
+  
+  const totalFatigue = emgSessions.reduce((sum, session) => sum + (session.sessionData?.avgFatigue || 0), 0);
+  const totalActivity = emgSessions.reduce((sum, session) => sum + (session.sessionData?.avgMuscleActivity || 0), 0);
+  
+  const avgFatigue = totalFatigue / emgSessions.length;
+  const avgActivity = totalActivity / emgSessions.length;
+  const recoveryNeeded = avgFatigue > 70 || avgActivity < 30;
+  
+  return { avgFatigue, avgActivity, recoveryNeeded };
+}
+
+function generateNutritionPlan(latest: TestAttempt, avgScore: number, testTypes: string[], emgAnalysis: any) {
   const baseCalories = 2200;
   const isEndurance = testTypes.includes('enduranceRun') || testTypes.includes('shuttleRun');
   const isStrength = testTypes.includes('pushUps') || testTypes.includes('pullUps');
@@ -53,6 +69,26 @@ function generateNutritionPlan(latest: TestAttempt, avgScore: number, testTypes:
   if (avgScore < 60) {
     calories += 300; // More calories for improvement
     protein += 0.4; // Extra protein for muscle building
+  }
+  
+  // EMG-based adjustments
+  if (emgAnalysis.avgFatigue > 70) {
+    calories += 200; // More calories for recovery
+    protein += 0.3; // Extra protein for muscle repair
+    supplements.push("Magnesium for muscle recovery");
+    meals.push("Recovery meal: Tart cherry juice with protein");
+  }
+  
+  if (emgAnalysis.avgActivity < 30) {
+    calories += 150; // More calories to support muscle activation
+    protein += 0.5; // Higher protein for muscle building
+    supplements.push("BCAAs for muscle activation");
+    meals.push("Pre-workout: Coffee with protein shake");
+  }
+  
+  if (emgAnalysis.recoveryNeeded) {
+    meals.push("Anti-inflammatory meal: Salmon with turmeric rice");
+    supplements.push("Omega-3 for inflammation reduction");
   }
 
   if (isEndurance) {
@@ -68,7 +104,7 @@ function generateNutritionPlan(latest: TestAttempt, avgScore: number, testTypes:
   const meals = [];
   const supplements = [];
 
-  if (avgScore < 70) {
+  if (avgScore < 70 || emgAnalysis.avgActivity < 40) {
     meals.push("Pre-workout: Banana with peanut butter");
     meals.push("Post-workout: Protein shake with berries");
     supplements.push("Whey protein powder");

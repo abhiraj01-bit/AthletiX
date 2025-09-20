@@ -135,8 +135,8 @@ export default function EMGConnection() {
                 <div className="text-sm text-muted-foreground">Activity</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">{emgData.fatigue.toFixed(1)}%</div>
-                <div className="text-sm text-muted-foreground">Fatigue</div>
+                <div className="text-2xl font-bold">{emgData.emg}</div>
+                <div className="text-sm text-muted-foreground">Raw EMG</div>
               </div>
               <div className="text-center">
                 <div className={`text-2xl font-bold ${emgData.activated ? 'text-green-500' : 'text-gray-500'}`}>

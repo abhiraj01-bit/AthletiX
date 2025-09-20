@@ -23,6 +23,14 @@ export interface EMGAnalysis {
   totalSessionTime: number;
   activationRate: number;
   dataPoints: number;
+  aiInsights?: {
+    summary: string;
+    performance: string;
+    fatigue: string;
+    activationPattern?: string;
+    recommendations: string[];
+    nextSteps?: string[];
+  };
 }
 
 interface EMGContextType {
@@ -104,6 +112,34 @@ export const EMGProvider: React.FC<EMGProviderProps> = ({ children }) => {
     }
   };
 
+  const generateAIInsights = async (analysis: EMGAnalysis, history: EMGData[]) => {
+    try {
+      const response = await fetch('/api/emg/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ analysis, history: history.slice(-10) })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        return result.insights;
+      }
+    } catch (error) {
+      console.error('AI insights generation failed:', error);
+    }
+    
+    // Fallback insights
+    return {
+      summary: `Session completed with ${analysis.avgMuscleActivity.toFixed(1)}% average muscle activity`,
+      performance: analysis.avgMuscleActivity > 60 ? 'Good muscle engagement' : 'Low muscle activation detected',
+      fatigue: analysis.avgFatigue > 70 ? 'High fatigue - consider rest' : 'Moderate fatigue levels',
+      recommendations: [
+        analysis.avgMuscleActivity < 40 ? 'Focus on proper muscle activation techniques' : 'Maintain current activation levels',
+        analysis.avgFatigue > 80 ? 'Take adequate rest between sessions' : 'Good recovery management'
+      ]
+    };
+  };
+
   const calculateAnalysis = (history: EMGData[]): EMGAnalysis => {
     if (history.length === 0) {
       return {
@@ -141,15 +177,46 @@ export const EMGProvider: React.FC<EMGProviderProps> = ({ children }) => {
   };
 
   const disconnectDevice = async () => {
+    console.log('🔌 Disconnect called, EMG history length:', emgHistory.length);
+    console.log('📊 EMG history sample:', emgHistory.slice(0, 3));
+    
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
     
-    // Calculate final analysis
+    // Calculate final analysis and save session summary
     if (emgHistory.length > 0) {
       const analysis = calculateAnalysis(emgHistory);
-      setSessionAnalysis(analysis);
+      
+      // Generate AI insights
+      const aiInsights = await generateAIInsights(analysis, emgHistory);
+      const enhancedAnalysis = { ...analysis, aiInsights };
+      
+      setSessionAnalysis(enhancedAnalysis);
+      
+      console.log('💾 Saving EMG session summary to database');
+      
+      // Save session summary to database
+      try {
+        const response = await fetch('/api/emg/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionData: enhancedAnalysis,
+            emgHistory: emgHistory.slice(-20), // Last 20 points only
+            userId: crypto.randomUUID(), // Generate proper UUID
+            timestamp: Date.now()
+          })
+        });
+        
+        const result = await response.json();
+        console.log('✅ EMG session saved:', result);
+      } catch (error) {
+        console.error('❌ Failed to save EMG session:', error);
+      }
+    } else {
+      console.log('⚠️ No EMG data to save - emgHistory is empty');
     }
     
     try {

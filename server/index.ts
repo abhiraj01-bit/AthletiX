@@ -2,12 +2,13 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { handleDemo } from "./routes/demo.js";
-import { handleEMGData, getEMGHistory } from "./routes/emg.js";
+import { handleEMGData, getEMGHistory, saveEMGSession, getEMGSessions, analyzeEMGSession } from "./routes/emg.js";
 import { connectArduino, getEMGData, listSerialPorts, disconnectArduino, getConnectionStatus } from "./routes/serial-emg.js";
 import { analyzeTest, getTestHistory, getTestStats, uploadVideo } from "./routes/tests.js";
 import { getProfile, saveProfile } from "./routes/profile.js";
 import { getLeaderboard } from "./routes/leaderboard.js";
 import { getTrainingPlans, saveTrainingPlan } from "./routes/trainingPlans.js";
+
 
 export function createServer() {
   const app = express();
@@ -27,7 +28,10 @@ export function createServer() {
   
   // EMG sensor routes
   app.post("/api/emg/data", handleEMGData);
+  app.post("/api/emg/session", saveEMGSession);
+  app.post("/api/emg/analyze", analyzeEMGSession);
   app.get("/api/emg/history/:userId", getEMGHistory);
+  app.get("/api/emg/sessions/:userId", getEMGSessions);
   
   // Arduino serial EMG routes
   app.post("/api/serial-emg/connect", connectArduino);
@@ -53,6 +57,8 @@ export function createServer() {
   // Training plans routes
   app.get("/api/training-plans/:userId", getTrainingPlans);
   app.post("/api/training-plans/:userId", saveTrainingPlan);
+  
+
   
   // Food analysis routes
   app.post("/api/food/analyze", async (req, res) => {

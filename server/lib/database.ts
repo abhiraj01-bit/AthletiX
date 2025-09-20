@@ -17,6 +17,8 @@ export interface DatabaseAdapter {
   getTestHistory(userId: string, testType?: string, limit?: number): Promise<TestAttempt[]>;
   getUserStats(userId: string): Promise<UserStats>;
   saveEMGReading(reading: EMGReading): Promise<void>;
+  saveEMGSession(session: EMGSession): Promise<string>;
+  getEMGSessions(userId: string): Promise<EMGSession[]>;
   getProfile(userId: string): Promise<UserProfile | null>;
   saveProfile(profile: UserProfile): Promise<UserProfile>;
   getLeaderboard(level: 'district' | 'state' | 'national', sport?: string, region?: string, limit?: number): Promise<LeaderboardEntry[]>;
@@ -67,6 +69,15 @@ export interface UserProfile {
   updated_at?: string;
 }
 
+export interface EMGSession {
+  id?: string;
+  userId: string;
+  sessionData: any;
+  emgHistory: any[];
+  timestamp: number;
+  createdAt?: string;
+}
+
 // In-memory implementation for development/testing
 class InMemoryDatabase implements DatabaseAdapter {
   private testAttempts: TestAttempt[] = [];
@@ -99,6 +110,18 @@ class InMemoryDatabase implements DatabaseAdapter {
 
   async saveEMGReading(reading: EMGReading): Promise<void> {
     this.emgReadings.unshift(reading);
+  }
+
+  private emgSessions: EMGSession[] = [];
+
+  async saveEMGSession(session: EMGSession): Promise<string> {
+    const newSession = { ...session, id: `session_${Date.now()}`, createdAt: new Date().toISOString() };
+    this.emgSessions.unshift(newSession);
+    return newSession.id!;
+  }
+
+  async getEMGSessions(userId: string): Promise<EMGSession[]> {
+    return this.emgSessions.filter(s => s.userId === userId);
   }
 
   async getProfile(userId: string): Promise<UserProfile | null> {
@@ -174,8 +197,8 @@ class InMemoryDatabase implements DatabaseAdapter {
 // Supabase implementation with fallback
 class SupabaseDatabase implements DatabaseAdapter {
   private supabase = createClient(
-    process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY!,
+    process.env.VITE_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
       auth: {
         autoRefreshToken: false,
@@ -185,9 +208,8 @@ class SupabaseDatabase implements DatabaseAdapter {
   );
   
   constructor() {
-    console.log('Supabase URL:', process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL);
-    console.log('Using key type:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SERVICE_ROLE' : 'ANON');
-    console.log('Service role key exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+    console.log('Supabase URL:', process.env.VITE_SUPABASE_URL);
+    console.log('Using SERVICE_ROLE key for database operations');
   }
   private fallback = new InMemoryDatabase();
 
@@ -334,6 +356,51 @@ class SupabaseDatabase implements DatabaseAdapter {
     } catch (error) {
       console.warn('Supabase profile save failed:', error);
       return profile;
+    }
+  }
+
+  async getEMGSessions(userId: string): Promise<EMGSession[]> {
+    try {
+      const { data, error } = await this.supabase
+        .from('emg_sessions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data?.map(d => ({
+        id: d.id,
+        userId: d.user_id,
+        sessionData: d.session_data,
+        emgHistory: d.emg_history,
+        timestamp: d.timestamp,
+        createdAt: d.created_at
+      })) || [];
+    } catch (error) {
+      console.warn('EMG sessions table not available, using fallback:', error);
+      return this.fallback.getEMGSessions(userId);
+    }
+  }
+
+  async saveEMGSession(session: EMGSession): Promise<string> {
+    try {
+      const { data, error } = await this.supabase
+        .from('emg_sessions')
+        .insert({
+          user_id: session.userId,
+          session_data: session.sessionData,
+          emg_history: session.emgHistory,
+          timestamp: session.timestamp
+        })
+        .select('id')
+        .single();
+
+      if (error) throw error;
+      console.log('EMG session saved to Supabase:', data.id);
+      return data.id;
+    } catch (error) {
+      console.warn('Supabase EMG sessions table not available, using fallback:', error);
+      return this.fallback.saveEMGSession(session);
     }
   }
 

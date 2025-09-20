@@ -190,8 +190,12 @@ export default function Nutrition() {
         const user = await APIService.getCurrentUser();
         if (user) {
           const attempts = await APIService.getTestHistory(user.id, 10);
-          if (attempts.length > 0) {
-            const recommendations = generateSmartRecommendations(attempts);
+          // Get EMG sessions for muscle activity data
+          const emgResponse = await fetch(`/api/emg/sessions/${user.id}`);
+          const emgResult = emgResponse.ok ? await emgResponse.json() : { data: [] };
+        
+          if (attempts.length > 0 || emgResult.data?.length > 0) {
+            const recommendations = generateSmartRecommendations(attempts, emgResult.data || []);
             setSmartRecommendations(recommendations);
           }
         }
@@ -202,6 +206,7 @@ export default function Nutrition() {
     loadRecommendations();
     
     const handleTestCompleted = () => {
+      console.log('Test completed event received, reloading recommendations');
       loadRecommendations();
     };
     

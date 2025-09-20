@@ -102,15 +102,13 @@ export default function EMGDashboard() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Fatigue Level
+              <TrendingUp className="h-4 w-4" />
+              Signal Strength
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{emgData.fatigue.toFixed(1)}%</div>
-            <Badge variant={fatigueStatus.variant} className="mt-1">
-              {fatigueStatus.status}
-            </Badge>
+            <div className="text-2xl font-bold">{((emgData.emg / 1023) * 100).toFixed(1)}%</div>
+            <div className="text-xs text-muted-foreground mt-1">Signal Quality</div>
           </CardContent>
         </Card>
 
@@ -197,7 +195,7 @@ export default function EMGDashboard() {
       <div className="grid lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Fatigue Monitoring</CardTitle>
+            <CardTitle>Signal Quality</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-64">
@@ -207,8 +205,8 @@ export default function EMGDashboard() {
                   <XAxis dataKey="time" />
                   <YAxis domain={[0, 100]} />
                   <Line 
-                    dataKey="fatigue" 
-                    stroke="#dc2626" 
+                    dataKey="muscleActivity" 
+                    stroke="#16a34a" 
                     strokeWidth={2}
                     dot={false}
                     isAnimationActive={false}
@@ -293,8 +291,8 @@ export default function EMGDashboard() {
                 <div className="text-sm text-muted-foreground">Avg Activity</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">{sessionAnalysis.avgFatigue.toFixed(1)}%</div>
-                <div className="text-sm text-muted-foreground">Avg Fatigue</div>
+                <div className="text-2xl font-bold">{sessionAnalysis.maxMuscleActivity.toFixed(1)}%</div>
+                <div className="text-sm text-muted-foreground">Peak Activity</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold">{sessionAnalysis.activationRate.toFixed(1)}%</div>
@@ -311,8 +309,8 @@ export default function EMGDashboard() {
                 <div className="text-muted-foreground">{sessionAnalysis.maxMuscleActivity.toFixed(1)}%</div>
               </div>
               <div>
-                <div className="font-medium">Max Fatigue</div>
-                <div className="text-muted-foreground">{sessionAnalysis.maxFatigue.toFixed(1)}%</div>
+                <div className="font-medium">Avg EMG</div>
+                <div className="text-muted-foreground">{(sessionAnalysis.avgMuscleActivity * 10.23).toFixed(0)}</div>
               </div>
               <div>
                 <div className="font-medium">Data Points</div>
@@ -329,10 +327,10 @@ export default function EMGDashboard() {
           <CardTitle>Smart Recommendations</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {emgData.fatigue > 70 && (
+          {emgData.emg > 800 && (
             <div className="p-3 rounded-lg bg-red-50 border border-red-200 dark:bg-red-950 dark:border-red-800">
-              <div className="font-medium text-red-800 dark:text-red-200">High Fatigue Detected</div>
-              <div className="text-sm text-red-600 dark:text-red-300">Consider taking a rest break to prevent injury.</div>
+              <div className="font-medium text-red-800 dark:text-red-200">High Signal Detected</div>
+              <div className="text-sm text-red-600 dark:text-red-300">Strong muscle activation detected.</div>
             </div>
           )}
           
@@ -343,10 +341,10 @@ export default function EMGDashboard() {
             </div>
           )}
           
-          {emgData.muscleActivity > 80 && emgData.fatigue < 40 && (
+          {emgData.muscleActivity > 80 && (
             <div className="p-3 rounded-lg bg-green-50 border border-green-200 dark:bg-green-950 dark:border-green-800">
-              <div className="font-medium text-green-800 dark:text-green-200">Optimal Performance</div>
-              <div className="text-sm text-green-600 dark:text-green-300">Great muscle activation with low fatigue. Keep it up!</div>
+              <div className="font-medium text-green-800 dark:text-green-200">Excellent Activation</div>
+              <div className="text-sm text-green-600 dark:text-green-300">Great muscle activation detected. Keep it up!</div>
             </div>
           )}
 

@@ -14,17 +14,15 @@ function WorkoutHistory() {
   useEffect(() => {
     const loadWorkoutHistory = async () => {
       try {
-        const user = await APIService.getCurrentUser();
-        if (user) {
-          const attempts = await APIService.getTestHistory(user.id, 5);
-          const workouts = attempts.map(attempt => ({
-            date: new Date(attempt.createdAt).toLocaleDateString(),
-            workout: attempt.testType.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
-            duration: "Test completed",
-            completed: attempt.formScore >= 50
-          }));
-          setWorkoutHistory(workouts);
-        }
+        const userId = 'demo-user-123';
+        const attempts = await APIService.getTestHistory(userId, 5);
+        const workouts = attempts.map(attempt => ({
+          date: new Date(attempt.createdAt).toLocaleDateString(),
+          workout: attempt.testType.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+          duration: "Test completed",
+          completed: attempt.formScore >= 50
+        }));
+        setWorkoutHistory(workouts);
       } catch (error) {
         console.error('Failed to load workout history:', error);
       }
@@ -114,21 +112,15 @@ export default function TrainingPlans() {
   useEffect(() => {
     const loadRecommendations = async () => {
       try {
-        const user = await APIService.getCurrentUser();
-        if (user) {
-          // Load smart training plans from API
-          const trainingData = await APIService.getTrainingPlans(user.id);
-          setSmartRecommendations(trainingData);
-          
-          // Fallback to old method if API fails
-          if (!trainingData.plan) {
-            const attempts = await APIService.getTestHistory(user.id, 10);
-            if (attempts.length > 0) {
-              const recommendations = generateSmartRecommendations(attempts);
-              setSmartRecommendations(recommendations);
-            }
-          }
-        }
+        // Use demo user ID for testing
+        const userId = 'demo-user-123';
+        console.log('Loading training recommendations for user:', userId);
+        
+        // Load smart training plans from API
+        const trainingData = await APIService.getTrainingPlans(userId);
+        console.log('Training data loaded:', trainingData);
+        setSmartRecommendations(trainingData);
+        
       } catch (error) {
         console.error('Failed to load smart recommendations:', error);
       }
@@ -191,6 +183,12 @@ export default function TrainingPlans() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {smartRecommendations?.emgDataAvailable && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="font-medium text-green-800">🧠 AI-Enhanced with EMG Data</div>
+                <div className="text-sm text-green-600">Your training plan is personalized using muscle activation data from EMG sensors</div>
+              </div>
+            )}
             <div className="grid md:grid-cols-3 gap-4">
               <div>
                 <div className="text-sm text-muted-foreground mb-1">Training Focus</div>
@@ -205,11 +203,16 @@ export default function TrainingPlans() {
                 </div>
               </div>
               <div>
-                <div className="text-sm text-muted-foreground mb-1">Recommended Exercises</div>
+                <div className="text-sm text-muted-foreground mb-1">EMG-Targeted Exercises</div>
                 <div className="space-y-1">
                   {smartRecommendations?.plan?.exercises ? (
                     smartRecommendations.plan.exercises.slice(0, 3).map((exercise, idx) => (
-                      <div key={idx} className="text-sm">• {exercise.name}</div>
+                      <div key={idx} className="text-sm">
+                        • {exercise.name}
+                        {exercise.emgTarget && (
+                          <span className="text-xs text-blue-600 ml-1">({exercise.emgTarget})</span>
+                        )}
+                      </div>
                     ))
                   ) : (
                     <div className="text-sm text-muted-foreground">• Complete fitness assessment</div>
@@ -222,9 +225,15 @@ export default function TrainingPlans() {
                   <div className="font-semibold">{smartRecommendations?.plan?.schedule || "Complete tests"}</div>
                 </div>
                 <div>
-                  <div className="text-sm text-muted-foreground">Difficulty</div>
+                  <div className="text-sm text-muted-foreground">AI Intensity</div>
                   <div className="font-semibold">{smartRecommendations?.plan?.difficulty || "Complete tests"}</div>
                 </div>
+                {smartRecommendations?.plan?.analysis?.emgInsights && (
+                  <div>
+                    <div className="text-sm text-muted-foreground">EMG Analysis</div>
+                    <div className="text-xs text-blue-600">{smartRecommendations.plan.analysis.emgInsights}</div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -103,12 +103,12 @@ export default function InjuryPrevention() {
   }, []);
   
   const injuryRisks = useMemo(() => {
-    if (!smartRecommendations) return [];
+    if (!smartRecommendations?.safety?.injuries) return [];
     return smartRecommendations.safety.injuries.map(injury => ({
       type: injury,
       severity: "Medium",
       description: `Risk identified from performance analysis`,
-      recommendation: smartRecommendations.safety.prevention[0] || "Follow safety guidelines"
+      recommendation: smartRecommendations.safety.prevention?.[0] || "Follow safety guidelines"
     }));
   }, [smartRecommendations]);
   
@@ -277,7 +277,7 @@ export default function InjuryPrevention() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {smartRecommendations ? (
+              {smartRecommendations?.safety?.injuries ? (
                 smartRecommendations.safety.injuries.map((injury, idx) => (
                   <div key={idx} className="p-3 rounded bg-red-50 border border-red-200">
                     <div className="font-medium text-red-800">{injury}</div>
@@ -289,7 +289,7 @@ export default function InjuryPrevention() {
                 </div>
               )}
               
-              {smartRecommendations?.safety.warnings.map((warning, idx) => (
+              {smartRecommendations?.safety?.warnings?.map((warning, idx) => (
                 <div key={idx} className="p-3 rounded bg-yellow-50 border border-yellow-200">
                   <div className="font-medium text-yellow-800">{warning}</div>
                 </div>
@@ -305,7 +305,7 @@ export default function InjuryPrevention() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {smartRecommendations ? (
+              {smartRecommendations?.safety?.prevention ? (
                 smartRecommendations.safety.prevention.map((tip, idx) => (
                   <div key={idx} className="flex items-center gap-2 p-2 rounded border">
                     <div className="h-2 w-2 rounded-full bg-green-500" />
@@ -327,7 +327,7 @@ export default function InjuryPrevention() {
             <CardTitle>Recovery Recommendations</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {smartRecommendations ? (
+            {smartRecommendations?.safety?.recovery ? (
               smartRecommendations.safety.recovery.map((recovery, idx) => (
                 <div key={idx} className="flex items-center gap-2 p-2 rounded border">
                   <div className="h-2 w-2 rounded-full bg-blue-500" />

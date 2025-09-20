@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
 import { db } from '../lib/database.js';
 import { geminiService } from '../services/geminiService.js';
+import { AITrainingService } from '../services/aiTrainingService.js';
 
 const generateSmartPlanWithGemini = async (userStats: any, attempts: any[]): Promise<any> => {
   try {
-    // Create a prompt for Gemini to generate training plan
     const prompt = `You are an expert fitness trainer. Based on this user's performance data, create a personalized training plan.
     
     User Performance Summary:
@@ -30,7 +30,6 @@ const generateSmartPlanWithGemini = async (userStats: any, attempts: any[]): Pro
       "schedule": "X days per week"
     }`;
     
-    // Use Gemini to generate the plan (without video)
     const model = geminiService.model;
     if (!model) throw new Error('Gemini not available');
     
@@ -44,7 +43,6 @@ const generateSmartPlanWithGemini = async (userStats: any, attempts: any[]): Pro
     return JSON.parse(jsonMatch[0]);
   } catch (error) {
     console.error('Gemini training plan error:', error);
-    // Fallback to simple plan
     return {
       name: 'Basic Fitness Plan',
       difficulty: 'Intermediate',
@@ -64,17 +62,56 @@ export const getTrainingPlans = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
     
-    // Get user stats and recent attempts
+    // Get comprehensive user data
     const stats = await db.getUserStats(userId);
     const attempts = await db.getTestHistory(userId, undefined, 10);
+    const emgSessions = await db.getEMGSessions(userId);
+    const userProfile = await db.getProfile(userId);
     
-    // Generate smart plan using Gemini AI
-    const smartPlan = await generateSmartPlanWithGemini(stats, attempts);
+    // Generate AI-powered training plan using EMG + performance data
+    const aiPlan = AITrainingService.generatePersonalizedPlan(
+      attempts,
+      emgSessions,
+      userProfile
+    );
+    
+    // Enhance with Gemini AI for detailed descriptions
+    const geminiPlan = await generateSmartPlanWithGemini(stats, attempts);
+    
+    const enhancedPlan = {
+      name: 'AI-Enhanced Training Plan',
+      difficulty: aiPlan.intensity,
+      duration: '4 weeks',
+      schedule: aiPlan.frequency,
+      focus: aiPlan.focus,
+      exercises: aiPlan.recommendedExercises.map(ex => ({
+        name: ex.name,
+        sets: ex.sets,
+        reps: ex.reps,
+        rest: ex.rest,
+        targetMuscles: ex.targetMuscles,
+        emgTarget: `${ex.emgThreshold}% activation`,
+        notes: `Focus on ${ex.targetMuscles.join(' and ')} engagement`
+      })),
+      analysis: {
+        strengths: aiPlan.strengths,
+        weaknesses: aiPlan.muscleWeaknesses,
+        emgInsights: emgSessions.length > 0 ? 
+          `Based on ${emgSessions.length} EMG sessions` : 
+          'Complete EMG tests for muscle-specific insights',
+        recommendations: [
+          `Primary focus: ${aiPlan.focus.join(' and ')}`,
+          `Training intensity: ${aiPlan.intensity}`,
+          `Recommended frequency: ${aiPlan.frequency}`
+        ]
+      }
+    };
     
     res.json({
       success: true,
-      plan: smartPlan,
-      userLevel: smartPlan.difficulty
+      plan: enhancedPlan,
+      userLevel: aiPlan.intensity,
+      emgDataAvailable: emgSessions.length > 0
     });
     
   } catch (error) {

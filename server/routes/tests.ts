@@ -42,6 +42,9 @@ export const analyzeTest = async (req: Request, res: Response) => {
 
     // Analyze video with Gemini
     console.log('Calling Gemini service for:', testType);
+    console.log('Video buffer size:', videoFile.buffer.length, 'bytes');
+    console.log('Gemini API key exists:', !!process.env.GEMINI_API_KEY);
+    
     const analysis = await geminiService.analyzeVideo(videoFile.buffer, testType);
     console.log('Gemini analysis completed:', analysis.testType);
 

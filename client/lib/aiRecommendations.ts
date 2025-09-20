@@ -66,6 +66,9 @@ function generateNutritionPlan(latest: TestAttempt, avgScore: number, testTypes:
   let carbs = 4; // g/kg body weight
   let fats = 1; // g/kg body weight
 
+  const meals: string[] = [];
+  const supplements: string[] = [];
+
   if (avgScore < 60) {
     calories += 300; // More calories for improvement
     protein += 0.4; // Extra protein for muscle building
@@ -100,9 +103,6 @@ function generateNutritionPlan(latest: TestAttempt, avgScore: number, testTypes:
     protein += 0.6; // More protein for strength
     calories += 150;
   }
-
-  const meals = [];
-  const supplements = [];
 
   if (avgScore < 70 || emgAnalysis.avgActivity < 40) {
     meals.push("Pre-workout: Banana with peanut butter");

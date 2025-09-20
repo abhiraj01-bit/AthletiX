@@ -211,15 +211,19 @@ class SupabaseDatabase implements DatabaseAdapter {
     console.log('Supabase URL:', process.env.VITE_SUPABASE_URL);
     console.log('Using SERVICE_ROLE key for database operations');
   }
+  
+  private isValidUUID(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  }
+  
   private fallback = new InMemoryDatabase();
 
   async saveTestAttempt(attempt: TestAttempt): Promise<TestAttempt> {
     try {
-      console.log('Supabase: Attempting to insert test attempt:', {
-        user_id: attempt.userId,
-        test_type: attempt.testType,
-        form_score: attempt.formScore
-      });
+      if (!this.isValidUUID(attempt.userId)) {
+        return this.fallback.saveTestAttempt(attempt);
+      }
       
       const { data, error } = await this.supabase
         .from('test_attempts')
@@ -236,21 +240,19 @@ class SupabaseDatabase implements DatabaseAdapter {
         .select()
         .single();
 
-      if (error) {
-        console.error('Supabase insert error:', error);
-        throw error;
-      }
-      
-      console.log('Supabase: Successfully inserted:', data.id);
+      if (error) throw error;
       return this.mapTestAttempt(data);
     } catch (error) {
-      console.warn('Supabase unavailable, using fallback:', error);
       return this.fallback.saveTestAttempt(attempt);
     }
   }
 
   async getTestHistory(userId: string, testType?: string, limit = 20): Promise<TestAttempt[]> {
     try {
+      if (!this.isValidUUID(userId)) {
+        return this.fallback.getTestHistory(userId, testType, limit);
+      }
+      
       let query = this.supabase
         .from('test_attempts')
         .select('*')
@@ -266,13 +268,16 @@ class SupabaseDatabase implements DatabaseAdapter {
       if (error) throw error;
       return data?.map(this.mapTestAttempt) || [];
     } catch (error) {
-      console.warn('Supabase unavailable, using fallback:', error);
       return this.fallback.getTestHistory(userId, testType, limit);
     }
   }
 
   async getUserStats(userId: string): Promise<UserStats> {
     try {
+      if (!this.isValidUUID(userId)) {
+        return this.fallback.getUserStats(userId);
+      }
+      
       const { data: attempts, error } = await this.supabase
         .from('test_attempts')
         .select('*')
@@ -292,13 +297,16 @@ class SupabaseDatabase implements DatabaseAdapter {
         weeklyProgress: Math.min(mappedAttempts.length * 10, 100)
       };
     } catch (error) {
-      console.warn('Supabase unavailable, using fallback:', error);
       return this.fallback.getUserStats(userId);
     }
   }
 
   async saveEMGReading(reading: EMGReading): Promise<void> {
     try {
+      if (!this.isValidUUID(reading.userId)) {
+        return this.fallback.saveEMGReading(reading);
+      }
+      
       const { error } = await this.supabase
         .from('emg_readings')
         .insert({
@@ -312,13 +320,16 @@ class SupabaseDatabase implements DatabaseAdapter {
 
       if (error) throw error;
     } catch (error) {
-      console.warn('Supabase unavailable, using fallback:', error);
       return this.fallback.saveEMGReading(reading);
     }
   }
 
   async getProfile(userId: string): Promise<UserProfile | null> {
     try {
+      if (!this.isValidUUID(userId)) {
+        return null;
+      }
+      
       const { data, error } = await this.supabase
         .from('profiles')
         .select('*')
@@ -328,13 +339,16 @@ class SupabaseDatabase implements DatabaseAdapter {
       if (error && error.code !== 'PGRST116') throw error;
       return data ? this.mapProfile(data) : null;
     } catch (error) {
-      console.warn('Supabase profile fetch failed:', error);
       return null;
     }
   }
 
   async saveProfile(profile: UserProfile): Promise<UserProfile> {
     try {
+      if (!this.isValidUUID(profile.id)) {
+        return profile;
+      }
+      
       const { data, error } = await this.supabase
         .from('profiles')
         .upsert({
@@ -354,13 +368,16 @@ class SupabaseDatabase implements DatabaseAdapter {
       if (error) throw error;
       return this.mapProfile(data);
     } catch (error) {
-      console.warn('Supabase profile save failed:', error);
       return profile;
     }
   }
 
   async getEMGSessions(userId: string): Promise<EMGSession[]> {
     try {
+      if (!this.isValidUUID(userId)) {
+        return this.fallback.getEMGSessions(userId);
+      }
+      
       const { data, error } = await this.supabase
         .from('emg_sessions')
         .select('*')
@@ -377,13 +394,16 @@ class SupabaseDatabase implements DatabaseAdapter {
         createdAt: d.created_at
       })) || [];
     } catch (error) {
-      console.warn('EMG sessions table not available, using fallback:', error);
       return this.fallback.getEMGSessions(userId);
     }
   }
 
   async saveEMGSession(session: EMGSession): Promise<string> {
     try {
+      if (!this.isValidUUID(session.userId)) {
+        return this.fallback.saveEMGSession(session);
+      }
+      
       const { data, error } = await this.supabase
         .from('emg_sessions')
         .insert({
@@ -396,10 +416,8 @@ class SupabaseDatabase implements DatabaseAdapter {
         .single();
 
       if (error) throw error;
-      console.log('EMG session saved to Supabase:', data.id);
       return data.id;
     } catch (error) {
-      console.warn('Supabase EMG sessions table not available, using fallback:', error);
       return this.fallback.saveEMGSession(session);
     }
   }

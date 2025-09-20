@@ -3,31 +3,62 @@ import { db } from '../lib/database.js';
 import { geminiService } from '../services/geminiService.js';
 import { AITrainingService } from '../services/aiTrainingService.js';
 
-const generateSmartPlanWithGemini = async (userStats: any, attempts: any[]): Promise<any> => {
+const generateSmartPlanWithGemini = async (userStats: any, attempts: any[], emgSessions: any[]): Promise<any> => {
   try {
-    const prompt = `You are an expert fitness trainer. Based on this user's performance data, create a personalized training plan.
-    
-    User Performance Summary:
-    - Average Form Score: ${userStats.averageFormScore || 60}/100
-    - Total Tests: ${attempts.length}
-    - Recent Test Results: ${attempts.slice(0, 5).map(a => `${a.testType}: ${a.formScore}/100`).join(', ')}
-    
-    Create a training plan with:
-    1. Difficulty level (Beginner/Intermediate/Advanced)
-    2. 4-6 specific exercises targeting weak areas
-    3. Sets, reps, and rest periods
-    4. Training focus areas
-    
+    // Prepare video analysis summary
+    const videoAnalysis = attempts.length > 0 ? 
+      `Video Test Analysis (${attempts.length} tests):
+      - Average Form Score: ${userStats.averageFormScore}/100
+      - Test Results: ${attempts.slice(0, 5).map(a => `${a.testType}: ${a.formScore}/100, Metrics: ${JSON.stringify(a.metrics)}`).join('\n      ')}
+      - Weak Areas: ${attempts.filter(a => a.formScore < 70).map(a => a.testType).join(', ') || 'None'}
+      - Strong Areas: ${attempts.filter(a => a.formScore >= 80).map(a => a.testType).join(', ') || 'None'}` :
+      'No video test data available';
+
+    // Prepare EMG analysis summary
+    const emgAnalysis = emgSessions.length > 0 ?
+      `EMG Muscle Activity Analysis (${emgSessions.length} sessions):
+      - Average Muscle Activity: ${(emgSessions.reduce((sum, s) => sum + (s.sessionData?.avgMuscleActivity || 0), 0) / emgSessions.length).toFixed(1)}%
+      - Average Fatigue Level: ${(emgSessions.reduce((sum, s) => sum + (s.sessionData?.avgFatigue || 0), 0) / emgSessions.length).toFixed(1)}%
+      - Activation Rate: ${(emgSessions.reduce((sum, s) => sum + (s.sessionData?.activationRate || 0), 0) / emgSessions.length).toFixed(1)}%
+      - Recovery Needed: ${emgSessions.some(s => (s.sessionData?.avgFatigue || 0) > 70) ? 'Yes' : 'No'}` :
+      'No EMG muscle activity data available';
+
+    const prompt = `You are an expert sports scientist and fitness trainer. Analyze BOTH video test performance AND EMG muscle activity data to create a comprehensive training plan.
+
+    ${videoAnalysis}
+
+    ${emgAnalysis}
+
+    Based on this combined analysis, create a training plan that addresses:
+    1. Form weaknesses identified in video tests
+    2. Muscle activation patterns from EMG data
+    3. Fatigue levels and recovery needs
+    4. Performance gaps between tests
+
     Return ONLY valid JSON:
     {
-      "name": "Plan Name",
+      "name": "Combined Video + EMG Training Plan",
       "difficulty": "Beginner|Intermediate|Advanced",
       "duration": "X weeks",
-      "focus": ["area1", "area2"],
+      "focus": ["area1", "area2", "area3"],
       "exercises": [
-        {"name": "Exercise", "sets": 3, "reps": "10-15", "rest": "60s", "notes": "tip"}
+        {
+          "name": "Exercise Name",
+          "sets": 3,
+          "reps": "10-15",
+          "rest": "60s",
+          "targetMuscles": ["muscle1", "muscle2"],
+          "emgTarget": "X% activation",
+          "videoFocus": "form improvement area",
+          "notes": "specific technique tip"
+        }
       ],
-      "schedule": "X days per week"
+      "schedule": "X days per week",
+      "analysis": {
+        "videoInsights": "key findings from video tests",
+        "emgInsights": "key findings from muscle activity",
+        "combinedRecommendations": ["rec1", "rec2", "rec3"]
+      }
     }`;
     
     const model = geminiService.model;
@@ -42,18 +73,22 @@ const generateSmartPlanWithGemini = async (userStats: any, attempts: any[]): Pro
     
     return JSON.parse(jsonMatch[0]);
   } catch (error) {
-    console.error('Gemini training plan error:', error);
+    console.error('Gemini combined analysis error:', error);
     return {
-      name: 'Basic Fitness Plan',
+      name: 'Basic Combined Training Plan',
       difficulty: 'Intermediate',
       duration: '4 weeks',
-      focus: ['Overall Fitness'],
+      focus: ['Form Improvement', 'Muscle Activation'],
       exercises: [
-        { name: 'Push-ups', sets: 3, reps: '10-15', rest: '60s' },
-        { name: 'Squats', sets: 3, reps: '15-20', rest: '45s' },
-        { name: 'Plank', sets: 3, reps: '30s', rest: '30s' }
+        { name: 'Form-Focused Push-ups', sets: 3, reps: '8-12', rest: '60s', targetMuscles: ['Chest', 'Triceps'], emgTarget: '60% activation', videoFocus: 'Proper form', notes: 'Focus on controlled movement' },
+        { name: 'Activation Squats', sets: 3, reps: '12-15', rest: '45s', targetMuscles: ['Quadriceps', 'Glutes'], emgTarget: '70% activation', videoFocus: 'Depth and balance', notes: 'Engage glutes fully' }
       ],
-      schedule: '3 days per week'
+      schedule: '3-4 days per week',
+      analysis: {
+        videoInsights: 'Video analysis shows form improvement needed',
+        emgInsights: 'EMG data indicates muscle activation patterns',
+        combinedRecommendations: ['Focus on form quality', 'Monitor muscle engagement', 'Allow adequate recovery']
+      }
     };
   }
 };
@@ -75,8 +110,8 @@ export const getTrainingPlans = async (req: Request, res: Response) => {
       userProfile
     );
     
-    // Enhance with Gemini AI for detailed descriptions
-    const geminiPlan = await generateSmartPlanWithGemini(stats, attempts);
+    // Enhance with Gemini AI for combined video + EMG analysis
+    const geminiPlan = await generateSmartPlanWithGemini(stats, attempts, emgSessions);
     
     const enhancedPlan = {
       name: 'AI-Enhanced Training Plan',

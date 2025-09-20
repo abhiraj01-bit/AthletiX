@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import { handleDemo } from "./routes/demo.js";
 import { handleEMGData, getEMGHistory } from "./routes/emg.js";
+import { connectArduino, getEMGData, listSerialPorts, disconnectArduino, getConnectionStatus } from "./routes/serial-emg.js";
 import { analyzeTest, getTestHistory, getTestStats, uploadVideo } from "./routes/tests.js";
 import { getProfile, saveProfile } from "./routes/profile.js";
 import { getLeaderboard } from "./routes/leaderboard.js";
@@ -27,6 +28,13 @@ export function createServer() {
   // EMG sensor routes
   app.post("/api/emg/data", handleEMGData);
   app.get("/api/emg/history/:userId", getEMGHistory);
+  
+  // Arduino serial EMG routes
+  app.post("/api/serial-emg/connect", connectArduino);
+  app.post("/api/serial-emg/disconnect", disconnectArduino);
+  app.get("/api/serial-emg/data", getEMGData);
+  app.get("/api/serial-emg/ports", listSerialPorts);
+  app.get("/api/serial-emg/status", getConnectionStatus);
   
   // Test analysis routes
   app.post("/api/tests/analyze", uploadVideo, analyzeTest);

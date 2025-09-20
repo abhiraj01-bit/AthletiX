@@ -2,23 +2,22 @@ import React, { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Line, LineChart } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Line, LineChart, ResponsiveContainer } from "recharts";
 import { useEMG } from "@/hooks/useEMG";
-import { getEMGHistory } from "@/lib/storage";
-import { Activity, Battery, Bluetooth, TrendingUp, AlertTriangle } from "lucide-react";
+import { Activity, Battery, TrendingUp, AlertTriangle, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function EMGDashboard() {
-  const { emgData, device, isConnecting, connectDevice, disconnectDevice } = useEMG();
-  const emgHistory = useMemo(() => getEMGHistory().slice(0, 20), []);
+  const { emgData, emgHistory, device, isConnecting, connectDevice, disconnectDevice } = useEMG();
 
   const chartData = useMemo(() => {
     return emgHistory.map((reading, index) => ({
-      time: `${index + 1}m`,
+      time: index,
+      emg: reading.emg,
       muscleActivity: reading.muscleActivity,
-      fatigue: reading.fatigue
+      fatigue: reading.fatigue,
+      activated: reading.activated ? 100 : 0
     }));
   }, [emgHistory]);
 
@@ -45,19 +44,37 @@ export default function EMGDashboard() {
           <h1 className="text-3xl font-bold">EMG Dashboard</h1>
           <p className="text-muted-foreground">Real-time muscle activity monitoring</p>
         </div>
-        <Button 
-          onClick={device.connected ? disconnectDevice : connectDevice}
-          variant={device.connected ? "secondary" : "default"}
-          disabled={isConnecting}
-          className="gap-2"
-        >
-          <Bluetooth className="h-4 w-4" />
-          {device.connected ? "Disconnect" : isConnecting ? "Connecting..." : "Connect EMG"}
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild variant="outline">
+            <Link to="/emg-connection">Arduino Setup</Link>
+          </Button>
+          <Button 
+            onClick={device.connected ? disconnectDevice : () => {}}
+            variant={device.connected ? "secondary" : "default"}
+            disabled={!device.connected}
+            className="gap-2"
+          >
+            <Activity className="h-4 w-4" />
+            {device.connected ? "Disconnect" : "Not Connected"}
+          </Button>
+        </div>
       </div>
 
       {/* Status Cards */}
-      <div className="grid md:grid-cols-4 gap-4">
+      <div className="grid md:grid-cols-5 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              Raw EMG
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{emgData.emg}</div>
+            <div className="text-xs text-muted-foreground">0-1023 range</div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -111,11 +128,9 @@ export default function EMGDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{device.connected ? "Connected" : "Offline"}</div>
-            {device.battery && (
-              <div className="text-xs text-muted-foreground mt-1">
-                Battery: {device.battery}%
-              </div>
-            )}
+            <div className="text-xs text-muted-foreground mt-1">
+              {device.port || "No port"}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -124,55 +139,133 @@ export default function EMGDashboard() {
       <div className="grid lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Muscle Activity Trend</CardTitle>
+            <CardTitle>Raw EMG Signal</CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartContainer
-              config={{ muscleActivity: { label: "Activity %", color: "hsl(var(--brand-500))" } }}
-              className="h-64"
-            >
-              <AreaChart data={chartData}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis dataKey="time" tickLine={false} axisLine={false} />
-                <YAxis hide />
-                <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                <Area 
-                  dataKey="muscleActivity" 
-                  type="monotone" 
-                  stroke="hsl(var(--brand-500))" 
-                  fill="hsl(var(--brand-500)/.2)" 
-                />
-              </AreaChart>
-            </ChartContainer>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="time" />
+                  <YAxis domain={[0, 1023]} />
+                  <Line 
+                    dataKey="emg" 
+                    stroke="#2563eb" 
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Fatigue Monitoring</CardTitle>
+            <CardTitle>Muscle Activity %</CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartContainer
-              config={{ fatigue: { label: "Fatigue %", color: "hsl(var(--destructive))" } }}
-              className="h-64"
-            >
-              <LineChart data={chartData}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis dataKey="time" tickLine={false} axisLine={false} />
-                <YAxis hide />
-                <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                <Line 
-                  dataKey="fatigue" 
-                  type="monotone" 
-                  stroke="hsl(var(--destructive))" 
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ChartContainer>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="time" />
+                  <YAxis domain={[0, 100]} />
+                  <Area 
+                    dataKey="muscleActivity" 
+                    stroke="#16a34a" 
+                    fill="#16a34a"
+                    fillOpacity={0.3}
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Fatigue Monitoring</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="time" />
+                  <YAxis domain={[0, 100]} />
+                  <Line 
+                    dataKey="fatigue" 
+                    stroke="#dc2626" 
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Activation Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="time" />
+                  <YAxis domain={[0, 100]} />
+                  <Area 
+                    dataKey="activated" 
+                    stroke="#7c3aed" 
+                    fill="#7c3aed"
+                    fillOpacity={0.3}
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Live Data Info */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Live Data Stream</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <div className="font-medium">Data Points</div>
+              <div className="text-muted-foreground">{emgHistory.length}/50</div>
+            </div>
+            <div>
+              <div className="font-medium">Update Rate</div>
+              <div className="text-muted-foreground">10 Hz</div>
+            </div>
+            <div>
+              <div className="font-medium">Last Update</div>
+              <div className="text-muted-foreground">
+                {new Date(emgData.timestamp).toLocaleTimeString()}
+              </div>
+            </div>
+            <div>
+              <div className="font-medium">Connection</div>
+              <div className={device.connected ? "text-green-600" : "text-red-600"}>
+                {device.connected ? "Active" : "Disconnected"}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Recommendations */}
       <Card>
@@ -200,24 +293,15 @@ export default function EMGDashboard() {
               <div className="text-sm text-green-600 dark:text-green-300">Great muscle activation with low fatigue. Keep it up!</div>
             </div>
           )}
-        </CardContent>
-      </Card>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Button asChild>
-            <Link to="/tests">Start Test Session</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link to="/analytics">View Analytics</Link>
-          </Button>
-          <Button variant="outline">
-            Export EMG Data
-          </Button>
+          {!device.connected && (
+            <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-950 dark:border-blue-800">
+              <div className="font-medium text-blue-800 dark:text-blue-200">Connect Arduino EMG Sensor</div>
+              <div className="text-sm text-blue-600 dark:text-blue-300">
+                <Link to="/emg-connection" className="underline">Set up your Arduino</Link> to start monitoring muscle activity.
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

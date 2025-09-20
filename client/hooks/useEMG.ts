@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface EMGData {
+  emg: number;
   muscleActivity: number;
   fatigue: number;
   activated: boolean;
@@ -9,87 +10,130 @@ export interface EMGData {
 
 export interface EMGDevice {
   connected: boolean;
-  battery: number | null;
-  device: BluetoothDevice | null;
+  port: string | null;
+  type: 'bluetooth' | 'usb';
 }
 
 export const useEMG = () => {
   const [emgData, setEmgData] = useState<EMGData>({
+    emg: 0,
     muscleActivity: 0,
     fatigue: 0,
     activated: false,
     timestamp: Date.now()
   });
   
+  const [emgHistory, setEmgHistory] = useState<EMGData[]>([]);
   const [device, setDevice] = useState<EMGDevice>({
     connected: false,
-    battery: null,
-    device: null
+    port: null,
+    type: 'usb'
   });
 
   const [isConnecting, setIsConnecting] = useState(false);
+  const [availablePorts, setAvailablePorts] = useState<any[]>([]);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const connectDevice = useCallback(async () => {
-    if (!navigator.bluetooth) {
-      throw new Error('Bluetooth not supported');
-    }
-
+  const connectDevice = useCallback(async (port?: string) => {
     setIsConnecting(true);
     
     try {
-      const bluetoothDevice = await navigator.bluetooth.requestDevice({
-        filters: [{ name: 'AthletiX-EMG' }],
-        optionalServices: ['battery_service']
+      const response = await fetch('/api/serial-emg/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ port: port || availablePorts[0]?.path })
       });
-
-      const server = await bluetoothDevice.gatt?.connect();
+      
+      if (!response.ok) throw new Error('Failed to connect');
       
       setDevice({
         connected: true,
-        battery: 85,
-        device: bluetoothDevice
+        port: port || availablePorts[0]?.path || null,
+        type: 'usb'
       });
-
-      // Start listening for EMG data
-      startDataStream();
       
     } catch (error) {
-      console.error('Failed to connect to EMG device:', error);
+      console.error('Failed to connect to Arduino:', error);
       throw error;
     } finally {
       setIsConnecting(false);
     }
-  }, []);
+  }, [availablePorts]);
 
   const disconnectDevice = useCallback(async () => {
-    if (device.device?.gatt?.connected) {
-      await device.device.gatt.disconnect();
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    
+    try {
+      await fetch('/api/serial-emg/disconnect', { method: 'POST' });
+    } catch (error) {
+      console.error('Failed to disconnect:', error);
     }
     
     setDevice({
       connected: false,
-      battery: null,
-      device: null
+      port: null,
+      type: 'usb'
     });
-  }, [device.device]);
+  }, []);
 
-  const startDataStream = useCallback(() => {
-    // Simulate real-time EMG data stream
-    const interval = setInterval(() => {
-      if (device.connected) {
-        setEmgData({
-          muscleActivity: 20 + Math.random() * 60,
-          fatigue: Math.random() * 40,
-          activated: Math.random() > 0.6,
-          timestamp: Date.now()
-        });
-      } else {
-        clearInterval(interval);
+  const getAvailablePorts = useCallback(async () => {
+    try {
+      const response = await fetch('/api/serial-emg/ports');
+      const result = await response.json();
+      if (result.success) {
+        setAvailablePorts(result.ports);
       }
-    }, 100);
+    } catch (error) {
+      console.error('Failed to get serial ports:', error);
+    }
+  }, []);
 
-    return () => clearInterval(interval);
+  // Start polling when connected
+  useEffect(() => {
+    if (device.connected && !intervalRef.current) {
+      intervalRef.current = setInterval(async () => {
+        try {
+          const response = await fetch('/api/serial-emg/data');
+          const result = await response.json();
+          
+          if (result.success && result.data) {
+            const newData: EMGData = {
+              emg: result.data.emg || 0,
+              muscleActivity: result.data.muscleActivity || 0,
+              fatigue: result.data.fatigue || 0,
+              activated: result.data.activated || false,
+              timestamp: result.data.timestamp || Date.now()
+            };
+            
+            setEmgData(newData);
+            setEmgHistory(prev => {
+              const updated = [...prev, newData].slice(-50); // Keep last 50 readings
+              return updated;
+            });
+          }
+        } catch (error) {
+          console.error('EMG polling error:', error);
+        }
+      }, 100); // 10Hz polling
+    } else if (!device.connected && intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
   }, [device.connected]);
+
+  useEffect(() => {
+    getAvailablePorts();
+  }, [getAvailablePorts]);
 
   const saveEMGReading = useCallback(async (testId: string) => {
     if (!device.connected) return;
@@ -118,10 +162,13 @@ export const useEMG = () => {
 
   return {
     emgData,
+    emgHistory,
     device,
     isConnecting,
+    availablePorts,
     connectDevice,
     disconnectDevice,
-    saveEMGReading
+    saveEMGReading,
+    getAvailablePorts
   };
 };

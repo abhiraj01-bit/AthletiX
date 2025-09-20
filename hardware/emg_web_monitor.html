@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AthletiX EMG Monitor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .metric {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .metric-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .active { color: #28a745; }
+        .inactive { color: #6c757d; }
+        .high-fatigue { color: #dc3545; }
+        .medium-fatigue { color: #ffc107; }
+        .low-fatigue { color: #28a745; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .chart {
+            width: 100%;
+            height: 200px;
+            border: 1px solid #ddd;
+            margin: 20px 0;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏃‍♂️ AthletiX EMG Monitor</h1>
+        
+        <div id="status" class="status disconnected">
+            Disconnected - Click "Connect" to pair with Arduino EMG sensor
+        </div>
+        
+        <div>
+            <button id="connectBtn" onclick="connectDevice()">Connect EMG Sensor</button>
+            <button id="disconnectBtn" onclick="disconnectDevice()" disabled>Disconnect</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+        
+        <div class="metrics">
+            <div class="metric">
+                <div class="metric-label">Raw EMG Signal</div>
+                <div id="emgValue" class="metric-value">0</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Muscle Activity</div>
+                <div id="muscleActivity" class="metric-value">0%</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Fatigue Level</div>
+                <div id="fatigueLevel" class="metric-value">0%</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Status</div>
+                <div id="activationStatus" class="metric-value inactive">REST</div>
+            </div>
+        </div>
+        
+        <canvas id="emgChart" class="chart"></canvas>
+        
+        <h3>Data Log</h3>
+        <div id="dataLog" class="log"></div>
+    </div>
+
+    <script>
+        let device = null;
+        let characteristic = null;
+        let isConnected = false;
+        let chart = null;
+        let emgData = [];
+        let maxDataPoints = 100;
+
+        // Initialize chart
+        const canvas = document.getElementById('emgChart');
+        const ctx = canvas.getContext('2d');
+        canvas.width = canvas.offsetWidth;
+        canvas.height = 200;
+
+        function log(message) {
+            const logDiv = document.getElementById('dataLog');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('dataLog').innerHTML = '';
+        }
+
+        function updateStatus(connected, message) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${connected ? 'connected' : 'disconnected'}`;
+            statusDiv.textContent = message;
+            
+            document.getElementById('connectBtn').disabled = connected;
+            document.getElementById('disconnectBtn').disabled = !connected;
+            
+            isConnected = connected;
+        }
+
+        async function connectDevice() {
+            if (!navigator.bluetooth) {
+                alert('Bluetooth not supported in this browser');
+                return;
+            }
+
+            try {
+                log('Requesting Bluetooth device...');
+                
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [
+                        { name: 'AthletiX-EMG' },
+                        { name: 'HC-05' },
+                        { namePrefix: 'HC-' }
+                    ],
+                    optionalServices: ['0000ffe0-0000-1000-8000-00805f9b34fb']
+                });
+
+                log(`Connecting to ${device.name}...`);
+                
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService('0000ffe0-0000-1000-8000-00805f9b34fb');
+                characteristic = await service.getCharacteristic('0000ffe1-0000-1000-8000-00805f9b34fb');
+
+                await characteristic.startNotifications();
+                characteristic.addEventListener('characteristicvaluechanged', handleData);
+
+                updateStatus(true, `Connected to ${device.name}`);
+                log('EMG sensor connected successfully!');
+
+            } catch (error) {
+                log(`Connection failed: ${error.message}`);
+                updateStatus(false, 'Connection failed');
+            }
+        }
+
+        async function disconnectDevice() {
+            if (device && device.gatt.connected) {
+                await device.gatt.disconnect();
+            }
+            device = null;
+            characteristic = null;
+            updateStatus(false, 'Disconnected');
+            log('EMG sensor disconnected');
+        }
+
+        function handleData(event) {
+            const value = event.target.value;
+            const decoder = new TextDecoder();
+            const dataString = decoder.decode(value);
+
+            try {
+                // Handle partial JSON data
+                if (dataString.includes('{') && dataString.includes('}')) {
+                    const jsonStart = dataString.indexOf('{');
+                    const jsonEnd = dataString.lastIndexOf('}') + 1;
+                    const jsonString = dataString.substring(jsonStart, jsonEnd);
+                    
+                    const data = JSON.parse(jsonString);
+                    updateMetrics(data);
+                    updateChart(data.emg || 0);
+                    
+                    log(`EMG: ${data.emg}, Activity: ${data.muscleActivity}%, Fatigue: ${data.fatigue}%`);
+                }
+            } catch (error) {
+                log(`Data parse error: ${dataString}`);
+            }
+        }
+
+        function updateMetrics(data) {
+            document.getElementById('emgValue').textContent = data.emg || 0;
+            document.getElementById('muscleActivity').textContent = `${(data.muscleActivity || 0).toFixed(1)}%`;
+            
+            const fatigueLevel = data.fatigue || 0;
+            const fatigueElement = document.getElementById('fatigueLevel');
+            fatigueElement.textContent = `${fatigueLevel.toFixed(1)}%`;
+            fatigueElement.className = `metric-value ${
+                fatigueLevel > 70 ? 'high-fatigue' : 
+                fatigueLevel > 40 ? 'medium-fatigue' : 'low-fatigue'
+            }`;
+            
+            const statusElement = document.getElementById('activationStatus');
+            const isActive = data.activated || false;
+            statusElement.textContent = isActive ? 'ACTIVE' : 'REST';
+            statusElement.className = `metric-value ${isActive ? 'active' : 'inactive'}`;
+        }
+
+        function updateChart(emgValue) {
+            emgData.push(emgValue);
+            if (emgData.length > maxDataPoints) {
+                emgData.shift();
+            }
+
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (emgData.length < 2) return;
+
+            // Draw grid
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 10; i++) {
+                const y = (canvas.height / 10) * i;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+
+            // Draw EMG signal
+            ctx.strokeStyle = '#007bff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            const maxValue = Math.max(1024, Math.max(...emgData));
+            const stepX = canvas.width / (maxDataPoints - 1);
+
+            for (let i = 0; i < emgData.length; i++) {
+                const x = i * stepX;
+                const y = canvas.height - (emgData[i] / maxValue) * canvas.height;
+                
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+
+            // Draw current value
+            ctx.fillStyle = '#007bff';
+            ctx.font = '12px Arial';
+            ctx.fillText(`Current: ${emgValue}`, 10, 20);
+            ctx.fillText(`Max: ${maxValue}`, 10, 35);
+        }
+
+        // Initialize
+        log('EMG Monitor ready. Click "Connect" to start.');
+        
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (isConnected) {
+                disconnectDevice();
+            }
+        });
+    </script>
+</body>
+</html>

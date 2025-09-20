@@ -1,5 +1,5 @@
 import { defineConfig, Plugin } from "vite";
-import react from "@vitejs/plugin-react-swc";
+import react from "@vitejs/plugin-react";
 import path from "path";
 import { createServer } from "./server";
 
@@ -8,11 +8,12 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
-    hmr: {
-      port: 8080,
+    hmr: false,
+    watch: {
+      ignored: ['**/*']
     },
     fs: {
-      allow: ["./client", "./shared"],
+      allow: ["./client", "./shared", "./"],
       deny: [".env", ".env.*", "*.{crt,pem}", "**/.git/**", "server/**"],
     },
   },

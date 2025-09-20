@@ -20,10 +20,10 @@ export const EMGWidget: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="text-sm text-muted-foreground mb-3">
-            Connect EMG sensor for muscle monitoring
+            Connect Arduino EMG sensor via USB
           </div>
           <Button asChild variant="outline" size="sm">
-            <Link to="/emg">Connect Sensor</Link>
+            <Link to="/emg">Connect Arduino</Link>
           </Button>
         </CardContent>
       </Card>

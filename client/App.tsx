@@ -22,6 +22,7 @@ import { Layout } from "@/components/common/Layout";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import EMGDashboard from "./pages/EMGDashboard";
+import EMGConnection from "./pages/EMGConnection";
 import TrainingPlans from "./pages/TrainingPlans";
 import InjuryPrevention from "./pages/InjuryPrevention";
 import Nutrition from "./pages/Nutrition";
@@ -48,6 +49,7 @@ const App = () => (
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/analytics" element={<Analytics />} />
                     <Route path="/emg" element={<EMGDashboard />} />
+                    <Route path="/emg-connection" element={<EMGConnection />} />
                     <Route path="/training" element={<TrainingPlans />} />
                     <Route path="/injury-prevention" element={<InjuryPrevention />} />
                     <Route path="/nutrition" element={<Nutrition />} />

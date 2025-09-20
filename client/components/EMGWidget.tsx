@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Activity, AlertTriangle, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useEMG } from "@/hooks/useEMG";
+import { useEMG } from "@/contexts/EMGContext";
 
 export const EMGWidget: React.FC = () => {
   const { emgData, device } = useEMG();

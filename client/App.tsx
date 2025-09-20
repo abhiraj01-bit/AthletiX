@@ -17,6 +17,7 @@ import Notifications from "./pages/Notifications";
 import Settings from "./pages/Settings";
 import { LanguageProvider } from "@/components/common/LanguageProvider";
 import { AuthProvider } from "@/components/common/AuthProvider";
+import { EMGProvider } from "@/contexts/EMGContext";
 import { ProtectedRoute } from "@/components/common/ProtectedRoute";
 import { Layout } from "@/components/common/Layout";
 import Login from "./pages/Login";
@@ -30,7 +31,8 @@ import Nutrition from "./pages/Nutrition";
 const App = () => (
   <LanguageProvider>
     <AuthProvider>
-      <TooltipProvider>
+      <EMGProvider>
+        <TooltipProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter>
@@ -60,7 +62,8 @@ const App = () => (
             } />
           </Routes>
         </BrowserRouter>
-      </TooltipProvider>
+        </TooltipProvider>
+      </EMGProvider>
     </AuthProvider>
   </LanguageProvider>
 );

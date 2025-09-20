@@ -4,12 +4,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Line, LineChart, ResponsiveContainer } from "recharts";
-import { useEMG } from "@/hooks/useEMG";
+import { useEMG } from "@/contexts/EMGContext";
 import { Activity, Battery, TrendingUp, AlertTriangle, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function EMGDashboard() {
-  const { emgData, emgHistory, device, isConnecting, connectDevice, disconnectDevice } = useEMG();
+  const { emgData, emgHistory, device, isConnecting, connectDevice, disconnectDevice, sessionAnalysis, clearAnalysis } = useEMG();
 
   const chartData = useMemo(() => {
     return emgHistory.map((reading, index) => ({
@@ -48,15 +48,23 @@ export default function EMGDashboard() {
           <Button asChild variant="outline">
             <Link to="/emg-connection">Arduino Setup</Link>
           </Button>
-          <Button 
-            onClick={device.connected ? disconnectDevice : () => {}}
-            variant={device.connected ? "secondary" : "default"}
-            disabled={!device.connected}
-            className="gap-2"
-          >
-            <Activity className="h-4 w-4" />
-            {device.connected ? "Disconnect" : "Not Connected"}
-          </Button>
+          {device.connected ? (
+            <Button 
+              onClick={disconnectDevice}
+              variant="destructive"
+              className="gap-2"
+            >
+              <Activity className="h-4 w-4" />
+              Disconnect
+            </Button>
+          ) : (
+            <Button asChild variant="default" className="gap-2">
+              <Link to="/emg-connection">
+                <Activity className="h-4 w-4" />
+                Connect Arduino
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -127,9 +135,9 @@ export default function EMGDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{device.connected ? "Connected" : "Offline"}</div>
+            <div className="text-2xl font-bold">{device.connected ? "Online" : "Offline"}</div>
             <div className="text-xs text-muted-foreground mt-1">
-              {device.port || "No port"}
+              {device.connected ? `Port: ${device.port}` : "No connection"}
             </div>
           </CardContent>
         </Card>
@@ -245,7 +253,7 @@ export default function EMGDashboard() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <div className="font-medium">Data Points</div>
-              <div className="text-muted-foreground">{emgHistory.length}/50</div>
+              <div className="text-muted-foreground">{emgHistory.length}/200</div>
             </div>
             <div>
               <div className="font-medium">Update Rate</div>
@@ -258,14 +266,62 @@ export default function EMGDashboard() {
               </div>
             </div>
             <div>
-              <div className="font-medium">Connection</div>
+              <div className="font-medium">Status</div>
               <div className={device.connected ? "text-green-600" : "text-red-600"}>
-                {device.connected ? "Active" : "Disconnected"}
+                {device.connected ? "Live" : "Offline"}
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Session Analysis */}
+      {sessionAnalysis && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              Session Analysis Report
+              <Button variant="outline" size="sm" onClick={clearAnalysis}>
+                Clear Report
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold">{sessionAnalysis.avgMuscleActivity.toFixed(1)}%</div>
+                <div className="text-sm text-muted-foreground">Avg Activity</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{sessionAnalysis.avgFatigue.toFixed(1)}%</div>
+                <div className="text-sm text-muted-foreground">Avg Fatigue</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{sessionAnalysis.activationRate.toFixed(1)}%</div>
+                <div className="text-sm text-muted-foreground">Activation Rate</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{Math.round(sessionAnalysis.totalSessionTime)}s</div>
+                <div className="text-sm text-muted-foreground">Session Time</div>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+              <div>
+                <div className="font-medium">Max Activity</div>
+                <div className="text-muted-foreground">{sessionAnalysis.maxMuscleActivity.toFixed(1)}%</div>
+              </div>
+              <div>
+                <div className="font-medium">Max Fatigue</div>
+                <div className="text-muted-foreground">{sessionAnalysis.maxFatigue.toFixed(1)}%</div>
+              </div>
+              <div>
+                <div className="font-medium">Data Points</div>
+                <div className="text-muted-foreground">{sessionAnalysis.dataPoints}</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recommendations */}
       <Card>

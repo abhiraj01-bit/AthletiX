@@ -27,6 +27,8 @@ import EMGConnection from "./pages/EMGConnection";
 import TrainingPlans from "./pages/TrainingPlans";
 import InjuryPrevention from "./pages/InjuryPrevention";
 import Nutrition from "./pages/Nutrition";
+import CoachDashboard from "./pages/CoachDashboard";
+import { CoachLayout } from "@/components/common/CoachLayout";
 
 const App = () => (
   <LanguageProvider>
@@ -55,6 +57,11 @@ const App = () => (
                     <Route path="/training" element={<TrainingPlans />} />
                     <Route path="/injury-prevention" element={<InjuryPrevention />} />
                     <Route path="/nutrition" element={<Nutrition />} />
+                    <Route path="/coach" element={
+                      <CoachLayout>
+                        <CoachDashboard />
+                      </CoachLayout>
+                    } />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Layout>

@@ -16,7 +16,7 @@ const upload = multer({
 
 export const uploadFoodImage = upload.single('foodImage');
 
-export const analyzeFoodImage = async (req: Request, res: Response) => {
+export const analyzeFoodImage = async (req: any, res: any) => {
   try {
     const imageFile = req.file;
     

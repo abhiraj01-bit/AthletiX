@@ -93,7 +93,7 @@ const generateSmartPlanWithGemini = async (userStats: any, attempts: any[], emgS
   }
 };
 
-export const getTrainingPlans = async (req: Request, res: Response) => {
+export const getTrainingPlans = async (req: any, res: any) => {
   try {
     const { userId } = req.params;
     
@@ -155,7 +155,7 @@ export const getTrainingPlans = async (req: Request, res: Response) => {
   }
 };
 
-export const saveTrainingPlan = async (req: Request, res: Response) => {
+export const saveTrainingPlan = async (req: any, res: any) => {
   try {
     const { userId } = req.params;
     const { planId, customExercises } = req.body;

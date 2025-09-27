@@ -244,7 +244,7 @@ export default function Tests() {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>EMG Sensor</span>
-              <span className="text-xs text-muted-foreground">{device.connected ? `Battery ${device.battery ?? "--"}%` : "Not paired"}</span>
+              <span className="text-xs text-muted-foreground">{device.connected ? `Battery ${(device as any).battery ?? "--"}%` : "Not paired"}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">

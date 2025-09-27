@@ -166,7 +166,7 @@ export default function Analytics() {
         return {
           date: new Date(a.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
           value: Number(metrics[meta.field] ?? 0),
-          formScore: a.formScore || 0,
+          formScore: (a as any).formScore || 0,
           performanceAnalysis: a.analysisResult
         };
       })
@@ -182,7 +182,7 @@ export default function Analytics() {
   const last = series.at(-1)?.value ?? 0;
   const best = Math.max(...series.map((p) => p.value));
   const avg7 = Math.round(series.slice(-7).reduce((s, p) => s + p.value, 0) / Math.min(7, series.length));
-  const avgFormScore = Math.round(series.slice(-7).reduce((s, p) => s + (p.formScore || 0), 0) / Math.min(7, series.length));
+  const avgFormScore = Math.round(series.slice(-7).reduce((s, p) => s + ((p as any).formScore || 0), 0) / Math.min(7, series.length));
   const trendSlope = linearSlope(series.map((p, i) => [i, p.value]));
   const projection = Math.round(last + trendSlope * 8);
   
@@ -333,7 +333,7 @@ export default function Analytics() {
                       <div className="text-xs text-muted-foreground">Performance</div>
                     </div>
                     <div className="p-2 rounded border">
-                      <div className="text-lg font-semibold">{series.at(-1)?.formScore?.toFixed(0) || 0}</div>
+                      <div className="text-lg font-semibold">{(series.at(-1) as any)?.formScore?.toFixed(0) || 0}</div>
                       <div className="text-xs text-muted-foreground">Form Score</div>
                     </div>
                   </div>

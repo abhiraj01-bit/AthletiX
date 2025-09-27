@@ -172,11 +172,12 @@ export const analyzeEMGSession = async (req: Request, res: Response) => {
     console.error('Gemini EMG analysis error:', error);
     
     // Fallback to basic analysis if Gemini fails
+    const { analysis: analysisData } = req.body;
     const fallbackInsights = {
-      summary: `EMG session: ${analysis?.avgMuscleActivity?.toFixed(1) || 0}% avg activity over ${((analysis?.totalSessionTime || 0) / 60).toFixed(1)} minutes`,
-      performance: (analysis?.avgMuscleActivity || 0) > 60 ? 'Good muscle engagement' : 'Low muscle activation',
-      fatigue: (analysis?.avgFatigue || 0) > 70 ? 'High fatigue - rest needed' : 'Moderate fatigue levels',
-      activationPattern: (analysis?.activationRate || 0) > 60 ? 'Consistent activation' : 'Inconsistent activation',
+      summary: `EMG session: ${analysisData?.avgMuscleActivity?.toFixed(1) || 0}% avg activity over ${((analysisData?.totalSessionTime || 0) / 60).toFixed(1)} minutes`,
+      performance: (analysisData?.avgMuscleActivity || 0) > 60 ? 'Good muscle engagement' : 'Low muscle activation',
+      fatigue: (analysisData?.avgFatigue || 0) > 70 ? 'High fatigue - rest needed' : 'Moderate fatigue levels',
+      activationPattern: (analysisData?.activationRate || 0) > 60 ? 'Consistent activation' : 'Inconsistent activation',
       recommendations: ['Focus on proper muscle activation', 'Monitor fatigue levels', 'Maintain consistent form'],
       nextSteps: ['Practice activation exercises', 'Allow adequate recovery', 'Track progress over time']
     };

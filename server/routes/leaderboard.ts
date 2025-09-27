@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { db } from '../lib/database.js';
 
-export const getLeaderboard = async (req: Request, res: Response) => {
+export const getLeaderboard = async (req: any, res: any) => {
   try {
     const { level = 'district', sport, region, limit = '100' } = req.query;
     

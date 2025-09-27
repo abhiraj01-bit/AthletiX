@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { db } from '../lib/database.js';
 
-export const getProfile = async (req: Request, res: Response) => {
+export const getProfile = async (req: any, res: any) => {
   try {
     console.log('GET Profile request for user:', req.params.userId);
     const { userId } = req.params;
@@ -14,7 +14,7 @@ export const getProfile = async (req: Request, res: Response) => {
   }
 };
 
-export const saveProfile = async (req: Request, res: Response) => {
+export const saveProfile = async (req: any, res: any) => {
   try {
     console.log('SAVE Profile request for user:', req.params.userId);
     console.log('Profile data received:', JSON.stringify(req.body, null, 2));

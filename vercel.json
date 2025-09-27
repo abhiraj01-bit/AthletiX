@@ -1,0 +1,22 @@
+{
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "@vercel/node"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "env": {
+    "SUPABASE_URL": "https://yzudsxnjsyydrrbxcvti.supabase.co",
+    "SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6dWRzeG5qc3l5ZHJyYnhjdnRpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzM5MTkyMiwiZXhwIjoyMDcyOTY3OTIyfQ.ikfIvH1mzRguiNkDBB_5gdkY1CRM4r0J28MSSkHTrPI",
+    "GEMINI_API_KEY": "AIzaSyBPIBgQULLcReNP0pZPXZgCFg3Umv7edE0"
+  }
+}

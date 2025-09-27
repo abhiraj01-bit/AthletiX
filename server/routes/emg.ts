@@ -131,12 +131,12 @@ export const analyzeEMGSession = async (req: Request, res: Response) => {
     const prompt = `You are an expert sports scientist analyzing EMG (electromyography) muscle activity data. Provide detailed analysis and recommendations.
     
     EMG Session Data:
-    - Average Muscle Activity: ${analysis.avgMuscleActivity.toFixed(1)}%
-    - Peak Muscle Activity: ${analysis.maxMuscleActivity.toFixed(1)}%
-    - Average Fatigue Level: ${analysis.avgFatigue.toFixed(1)}%
-    - Activation Rate: ${analysis.activationRate.toFixed(1)}%
-    - Session Duration: ${(analysis.totalSessionTime / 60).toFixed(1)} minutes
-    - Total Data Points: ${analysis.dataPoints}
+    - Average Muscle Activity: ${analysis?.avgMuscleActivity?.toFixed(1) || 0}%
+    - Peak Muscle Activity: ${analysis?.maxMuscleActivity?.toFixed(1) || 0}%
+    - Average Fatigue Level: ${analysis?.avgFatigue?.toFixed(1) || 0}%
+    - Activation Rate: ${analysis?.activationRate?.toFixed(1) || 0}%
+    - Session Duration: ${((analysis?.totalSessionTime || 0) / 60).toFixed(1)} minutes
+    - Total Data Points: ${analysis?.dataPoints || 0}
     
     Provide comprehensive analysis including:
     1. Session summary with key findings
@@ -173,10 +173,10 @@ export const analyzeEMGSession = async (req: Request, res: Response) => {
     
     // Fallback to basic analysis if Gemini fails
     const fallbackInsights = {
-      summary: `EMG session: ${analysis.avgMuscleActivity.toFixed(1)}% avg activity over ${(analysis.totalSessionTime / 60).toFixed(1)} minutes`,
-      performance: analysis.avgMuscleActivity > 60 ? 'Good muscle engagement' : 'Low muscle activation',
-      fatigue: analysis.avgFatigue > 70 ? 'High fatigue - rest needed' : 'Moderate fatigue levels',
-      activationPattern: analysis.activationRate > 60 ? 'Consistent activation' : 'Inconsistent activation',
+      summary: `EMG session: ${analysis?.avgMuscleActivity?.toFixed(1) || 0}% avg activity over ${((analysis?.totalSessionTime || 0) / 60).toFixed(1)} minutes`,
+      performance: (analysis?.avgMuscleActivity || 0) > 60 ? 'Good muscle engagement' : 'Low muscle activation',
+      fatigue: (analysis?.avgFatigue || 0) > 70 ? 'High fatigue - rest needed' : 'Moderate fatigue levels',
+      activationPattern: (analysis?.activationRate || 0) > 60 ? 'Consistent activation' : 'Inconsistent activation',
       recommendations: ['Focus on proper muscle activation', 'Monitor fatigue levels', 'Maintain consistent form'],
       nextSteps: ['Practice activation exercises', 'Allow adequate recovery', 'Track progress over time']
     };

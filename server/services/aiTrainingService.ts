@@ -1,4 +1,4 @@
-import { EMGData } from '../lib/database.js';
+// Remove unused import
 
 export interface TrainingAnalysis {
   muscleWeaknesses: string[];

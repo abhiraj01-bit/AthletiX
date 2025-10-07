@@ -335,11 +335,11 @@ export class GeminiAnalysisService {
       sitUps: { reps: Math.floor(Math.random() * 20) + 25, formScore: Math.floor(Math.random() * 25) + 75 },
       pushUps: { reps: Math.floor(Math.random() * 15) + 20, formScore: Math.floor(Math.random() * 25) + 70 },
       pullUps: { reps: Math.floor(Math.random() * 8) + 5, formScore: Math.floor(Math.random() * 30) + 65 },
-      shuttleRun: { laps: Math.floor(Math.random() * 5) + 8, timeSec: Math.floor(Math.random() * 10) + 25, agility: Math.floor(Math.random() * 25) + 70 },
-      flexibilityTest: { reachCm: Math.floor(Math.random() * 15) + 20, flexibility: Math.floor(Math.random() * 30) + 60 },
-      agilityLadder: { completionTime: Math.floor(Math.random() * 5) + 12, footworkScore: Math.floor(Math.random() * 25) + 70 },
-      enduranceRun: { distanceKm: Math.floor(Math.random() * 3) + 2, pace: Math.floor(Math.random() * 2) + 5, endurance: Math.floor(Math.random() * 25) + 70 },
-      heightWeight: { heightCm: Math.floor(Math.random() * 20) + 160, weightKg: Math.floor(Math.random() * 30) + 60, bmi: 22.5 }
+      shuttleRun: { laps: Math.floor(Math.random() * 5) + 8, time: Math.floor(Math.random() * 10) + 25, formScore: Math.floor(Math.random() * 25) + 70 },
+      flexibilityTest: { reach: Math.floor(Math.random() * 15) + 20, formScore: Math.floor(Math.random() * 30) + 60 },
+      agilityLadder: { time: Math.floor(Math.random() * 5) + 12, formScore: Math.floor(Math.random() * 25) + 70 },
+      enduranceRun: { distance: Math.floor(Math.random() * 3) + 2, pace: Math.floor(Math.random() * 2) + 5, formScore: Math.floor(Math.random() * 25) + 70 },
+      heightWeight: { height: Math.floor(Math.random() * 20) + 160, weight: Math.floor(Math.random() * 30) + 60, bmi: 22.5, formScore: 75 }
     };
 
     const data = fallbackData[testType as keyof typeof fallbackData] || fallbackData.sitUps;
@@ -354,7 +354,7 @@ export class GeminiAnalysisService {
         "Maintain consistent breathing pattern",
         "Gradually increase intensity over time"
       ],
-      badge: this.calculateBadge({ formScore }, testType),
+      badge: this.calculateBadge(data, testType),
       errors: [],
       isRealAI: false
     };

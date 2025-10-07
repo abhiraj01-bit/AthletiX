@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+// import { Request, Response } from 'express';
 import multer from 'multer';
 import { randomUUID } from 'crypto';
 import { geminiService } from '../services/geminiService.js';
@@ -18,7 +18,7 @@ const upload = multer({
 
 export const uploadVideo = upload.single('video');
 
-export const analyzeTest = async (req: Request, res: Response) => {
+export const analyzeTest = async (req: any, res: any) => {
   try {
     console.log('Analyze test request received');
     const { testType, userId } = req.body;
@@ -79,7 +79,7 @@ export const analyzeTest = async (req: Request, res: Response) => {
   }
 };
 
-export const getTestHistory = async (req: Request, res: Response) => {
+export const getTestHistory = async (req: any, res: any) => {
   try {
     const { userId } = req.params;
     const { testType, limit = 20 } = req.query;
@@ -93,7 +93,7 @@ export const getTestHistory = async (req: Request, res: Response) => {
   }
 };
 
-export const getTestStats = async (req: Request, res: Response) => {
+export const getTestStats = async (req: any, res: any) => {
   try {
     const { userId } = req.params;
 

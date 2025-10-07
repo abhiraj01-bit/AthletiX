@@ -10,7 +10,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { userId } = req.query;
     const { testType, limit = 20 } = req.query;
 
-    const attempts = await db.getTestHistory(userId as string, testType as string, Number(limit));
+    const attempts = await db.getTestHistory(
+      userId as string, 
+      testType as string, 
+      Number(limit)
+    );
+    
     res.json({ success: true, attempts });
 
   } catch (error) {

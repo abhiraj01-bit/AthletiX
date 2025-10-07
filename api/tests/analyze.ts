@@ -52,7 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       id: randomUUID(),
       userId,
       testType,
-      videoUrl: undefined,
+      videoUrl: null,
       analysisResult: analysis,
       metrics: analysis.metrics,
       formScore: analysis.formScore,
